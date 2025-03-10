@@ -66,6 +66,7 @@ def export_table_to_excel(file_path, output_excel_path):
         }
 
         # Iterate through rows (1-based indexing)
+        max_rows = table.Rows.Count
         max_rows = min(30, table.Rows.Count)  # TEMPORARY: Limit to first 30 rows; comment out for all rows
         for row_idx in range(1, max_rows + 1):  # Process up to max_rows
             row_data = []
