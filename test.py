@@ -47,6 +47,15 @@ def export_table_to_excel(file_path, output_excel_path):
         table_data = []
         checkbox_columns = range(4, 9)  # Columns 4 to 8 (1-based)
 
+        # Sample text mapping for checkbox indices
+        checkbox_text_map = {
+            '4': 'No Difference',
+            '5': 'More Exacting',
+            '6': 'Different in character',
+            '7': 'Less protective or partially',
+            '8': 'Significant Difference'
+        }
+
         # Iterate through rows (1-based indexing)
         max_rows = min(30, table.Rows.Count)  # TEMPORARY: Limit to first 30 rows; comment out for all rows
         for row_idx in range(1, max_rows + 1):  # Process up to max_rows
@@ -75,9 +84,16 @@ def export_table_to_excel(file_path, output_excel_path):
                     elif col_idx > 8:
                         row_data.append(cell_text)  # Columns 9+ later
 
-            # Insert checked indices as the third column
-            checked_indices_str = ", ".join(checked_indices) if checked_indices else ""
-            row_data.insert(2, checked_indices_str)  # Insert at index 2 (third position, 0-based)
+            # Determine text for checked checkboxes
+            if len(checked_indices) == 0:
+                checked_text = ""  # No checkboxes checked
+            elif len(checked_indices) == 1:
+                checked_text = checkbox_text_map.get(checked_indices[0], "")  # Single checkbox
+            else:
+                checked_text = "Error-multi checkbox"  # Multiple checkboxes
+
+            # Insert checked text as the third column
+            row_data.insert(2, checked_text)
 
             table_data.append(row_data)
 
