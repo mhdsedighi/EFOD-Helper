@@ -239,36 +239,36 @@ def fill_form_from_excel(excel_path, form_path):
 
     try:
         # Open the document
+        logging.debug(f"Attempting to open document: {form_path}")
         doc = word.Documents.Open(os.path.abspath(form_path))
         logging.info(f"Opened document: {form_path}")
 
         # Define Word constants
         WD_NO_PROTECTION = -1
+        wdAllowOnlyFormFields = 2  # Protection type for form fields only
 
-        # Handle protection
-        protection_password = None  # Set to your password if known
-        if doc.ProtectionType != WD_NO_PROTECTION:
-            logging.info("Document is protected. Attempting to unprotect...")
-            try:
-                if protection_password:
-                    doc.Unprotect(protection_password)
-                else:
-                    doc.Unprotect()
-                logging.info("Document unprotected successfully.")
-            except Exception as e:
-                logging.error(f"Failed to unprotect document: {e}")
-                doc.Close()
-                return None
+        # Check protection type (for logging/info purposes, no unprotection)
+        if doc.ProtectionType == WD_NO_PROTECTION:
+            logging.info("Document is not protected")
+        elif doc.ProtectionType == wdAllowOnlyFormFields:
+            logging.info("Document is protected with form fields only - editing form fields directly")
+        else:
+            logging.error(f"Document has unsupported protection type: {doc.ProtectionType}. Must be unprotected or form-fields-only.")
+            doc.Close()
+            return None
 
+        logging.debug("Checking table count")
         if doc.Tables.Count == 0:
             logging.error("No tables found in the document.")
             doc.Close()
             return None
 
         # Get the first table
+        logging.debug("Accessing first table")
         table = doc.Tables(1)
 
         # Verify Word table has 11 columns
+        logging.debug("Verifying column count")
         if table.Columns.Count != 11:
             logging.error(f"Expected 11 columns in Word table, found {table.Columns.Count}")
             doc.Close()
@@ -290,13 +290,21 @@ def fill_form_from_excel(excel_path, form_path):
         for row_idx in range(1, max_rows + 1):
             row_data = df.iloc[row_idx - 1]  # 0-based index for pandas
 
-            # Skip modifying columns 1 and 2
-            # Fill columns 3, 10, 11
+            # Skip modifying columns 1 and 2 (as per original requirement)
+            # Fill columns 3, 10, 11 (assuming these are text form fields)
             for col_idx, value in [(3, row_data["State Ref."]), (10, row_data["Details"]), (11, row_data["Remark"])]:
                 try:
                     cell = table.Cell(row_idx, col_idx)
-                    cell.Range.Text = str(value) if pd.notna(value) else ""
-                    logging.debug(f"Set text in Row {row_idx}, Col {col_idx}: {value}")
+                    if cell.Range.FormFields.Count > 0:
+                        # Use the first form field in the cell (assuming text field)
+                        field = cell.Range.FormFields(1)
+                        if field.Type == 70:  # wdFieldFormTextInput
+                            field.Result = str(value) if pd.notna(value) else ""
+                            logging.debug(f"Set text form field in Row {row_idx}, Col {col_idx}: {value}")
+                        else:
+                            logging.warning(f"Expected text form field, found type {field.Type} in Row {row_idx}, Col {col_idx}")
+                    else:
+                        logging.warning(f"No form field found in Row {row_idx}, Col {col_idx} - skipping text update")
                 except Exception as e:
                     logging.error(f"Failed to set text in Row {row_idx}, Col {col_idx}: {e}")
 
@@ -338,6 +346,7 @@ def fill_form_from_excel(excel_path, form_path):
             output_form_path = os.path.splitext(form_path)[0] + f"_edited_{counter}.docx"
             counter += 1
 
+        logging.debug(f"Saving document as: {output_form_path}")
         doc.SaveAs(os.path.abspath(output_form_path))
         logging.info(f"Form filled and saved as {output_form_path}")
         return output_form_path
