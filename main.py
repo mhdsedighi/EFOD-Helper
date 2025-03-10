@@ -5,13 +5,33 @@ import re
 from openpyxl import load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, scrolledtext
 import logging
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+# Custom logging handler to output to a Tkinter Text widget
+class TextHandler(logging.Handler):
+    def __init__(self, text_widget, root):
+        super().__init__()
+        self.text_widget = text_widget
+        self.root = root  # Reference to Tkinter root for updating
 
-def export_table_to_excel(file_path, output_dir):
+    def emit(self, record):
+        msg = self.format(record)
+        self.text_widget.configure(state='normal')
+        self.text_widget.insert(tk.END, msg + '\n')
+        self.text_widget.configure(state='disabled')
+        self.text_widget.see(tk.END)  # Auto-scroll to the bottom
+        self.root.update()  # Force GUI update to show message immediately
+
+def setup_logging(text_widget, root):
+    # Set up logging to output to the text widget
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    handler = TextHandler(text_widget, root)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().handlers = []  # Clear default handlers
+    logging.getLogger().addHandler(handler)
+
+def export_table_to_excel(file_path, output_dir, root):
     if not os.path.exists(file_path):
         logging.error(f"File not found: {file_path}")
         return None
@@ -22,6 +42,7 @@ def export_table_to_excel(file_path, output_dir):
         word.Visible = False
         word.DisplayAlerts = False
         logging.info("Word application initialized")
+        root.update()  # Update GUI
     except Exception as e:
         logging.error(f"Failed to initialize Word: {e}")
         return None
@@ -30,6 +51,7 @@ def export_table_to_excel(file_path, output_dir):
         # Open the document
         doc = word.Documents.Open(os.path.abspath(file_path))
         logging.info(f"Opened document: {file_path}")
+        root.update()
 
         # Define Word constants
         WD_NO_PROTECTION = -1
@@ -44,6 +66,7 @@ def export_table_to_excel(file_path, output_dir):
                 else:
                     doc.Unprotect()
                 logging.info("Document unprotected successfully.")
+                root.update()
             except Exception as e:
                 logging.error(f"Failed to unprotect document: {e}")
                 doc.Close()
@@ -78,8 +101,10 @@ def export_table_to_excel(file_path, output_dir):
         }
 
         # Iterate through rows (1-based indexing)
-        max_rows = min(30, table.Rows.Count)  # Limit to first 30 rows; comment out to process all rows
+        max_rows = table.Rows.Count
+        # max_rows = min(30, table.Rows.Count)  # Limit to first 30 rows; comment out to process all rows
         logging.info(f"Processing up to {max_rows} rows")
+        root.update()
         for row_idx in range(1, max_rows + 1):  # Process up to max_rows
             row_data = []
             checked_indices = []
@@ -143,6 +168,7 @@ def export_table_to_excel(file_path, output_dir):
             # Insert checked text as the third column (Excel col 3)
             row_data.insert(2, checked_text)  # Inserts "Difference" at index 2
             table_data.append(row_data)
+            root.update()  # Update GUI after each row
 
         # Define exactly 6 column headers for Excel
         headers = [
@@ -189,6 +215,7 @@ def export_table_to_excel(file_path, output_dir):
         # Save the modified workbook
         wb.save(output_excel_path)
         logging.info(f"Table data exported to {output_excel_path} (Processed {len(table_data)} rows) with table and frozen headers")
+        root.update()
         return output_excel_path
 
     except Exception as e:
@@ -199,16 +226,18 @@ def export_table_to_excel(file_path, output_dir):
         try:
             doc.Close()
             logging.info("Document closed")
+            root.update()
         except:
             pass
         try:
             word.Quit()
             logging.info("Word application quit")
+            root.update()
         except:
             pass
 
 
-def fill_form_from_excel(excel_path, form_path):
+def fill_form_from_excel(excel_path, form_path, root):
     if not os.path.exists(excel_path):
         logging.error(f"Excel file not found: {excel_path}")
         return None
@@ -223,6 +252,7 @@ def fill_form_from_excel(excel_path, form_path):
             logging.error("Excel file does not match expected column structure")
             return None
         logging.info("Excel data loaded successfully")
+        root.update()
     except Exception as e:
         logging.error(f"Failed to read Excel file: {e}")
         return None
@@ -233,6 +263,7 @@ def fill_form_from_excel(excel_path, form_path):
         word.Visible = False
         word.DisplayAlerts = False
         logging.info("Word application initialized")
+        root.update()
     except Exception as e:
         logging.error(f"Failed to initialize Word: {e}")
         return None
@@ -242,6 +273,7 @@ def fill_form_from_excel(excel_path, form_path):
         logging.debug(f"Attempting to open document: {form_path}")
         doc = word.Documents.Open(os.path.abspath(form_path))
         logging.info(f"Opened document: {form_path}")
+        root.update()
 
         # Define Word constants
         WD_NO_PROTECTION = -1
@@ -256,6 +288,7 @@ def fill_form_from_excel(excel_path, form_path):
             logging.error(f"Document has unsupported protection type: {doc.ProtectionType}. Must be unprotected or form-fields-only.")
             doc.Close()
             return None
+        root.update()
 
         logging.debug("Checking table count")
         if doc.Tables.Count == 0:
@@ -273,6 +306,7 @@ def fill_form_from_excel(excel_path, form_path):
             logging.error(f"Expected 11 columns in Word table, found {table.Columns.Count}")
             doc.Close()
             return None
+        root.update()
 
         # Checkbox mapping (reverse of export)
         checkbox_text_map = {
@@ -287,6 +321,7 @@ def fill_form_from_excel(excel_path, form_path):
         # Iterate through rows (limited to 30)
         max_rows = min(30, table.Rows.Count, len(df))
         logging.info(f"Processing up to {max_rows} rows")
+        root.update()
         for row_idx in range(1, max_rows + 1):
             row_data = df.iloc[row_idx - 1]  # 0-based index for pandas
 
@@ -307,6 +342,7 @@ def fill_form_from_excel(excel_path, form_path):
                         logging.warning(f"No form field found in Row {row_idx}, Col {col_idx} - skipping text update")
                 except Exception as e:
                     logging.error(f"Failed to set text in Row {row_idx}, Col {col_idx}: {e}")
+            root.update()  # Update after text fields
 
             # Handle checkboxes (columns 4-9): Reset all to unchecked first
             for col_idx in range(4, 10):  # Columns 4-9
@@ -338,6 +374,7 @@ def fill_form_from_excel(excel_path, form_path):
                             logging.debug(f"Checked checkbox in Row {row_idx}, Col {col_idx} for {diff_value}")
                 except Exception as e:
                     logging.error(f"Error checking checkbox in Row {row_idx}, Col {col_idx}: {e}")
+            root.update()  # Update after checkboxes
 
         # Save the modified document with a new name
         output_form_path = os.path.splitext(form_path)[0] + "_edited.docx"
@@ -349,6 +386,7 @@ def fill_form_from_excel(excel_path, form_path):
         logging.debug(f"Saving document as: {output_form_path}")
         doc.SaveAs(os.path.abspath(output_form_path))
         logging.info(f"Form filled and saved as {output_form_path}")
+        root.update()
         return output_form_path
 
     except Exception as e:
@@ -359,11 +397,13 @@ def fill_form_from_excel(excel_path, form_path):
         try:
             doc.Close()
             logging.info("Document closed")
+            root.update()
         except:
             pass
         try:
             word.Quit()
             logging.info("Word application quit")
+            root.update()
         except:
             pass
 
@@ -371,34 +411,45 @@ def fill_form_from_excel(excel_path, form_path):
 def gui():
     root = tk.Tk()
     root.title("Form Converter")
-    root.geometry("300x150")
+    root.geometry("800x400")  # Initial size
+
+    # Frame for buttons
+    button_frame = tk.Frame(root)
+    button_frame.pack(pady=10, fill=tk.X)  # Fill horizontally
+
+    # Log display area (dynamic width)
+    log_text = scrolledtext.ScrolledText(root, height=20, state='disabled')
+    log_text.pack(pady=10, fill=tk.BOTH, expand=True)  # Fill both directions and expand
+
+    # Set up logging to the text widget
+    setup_logging(log_text, root)
 
     def form_to_excel():
         form_path = filedialog.askopenfilename(title="Select Word Form", filetypes=[("Word files", "*.docx")])
         if form_path:
             output_dir = os.path.dirname(form_path)
-            output_file = export_table_to_excel(form_path, output_dir)
+            output_file = export_table_to_excel(form_path, output_dir, root)
             if output_file:
                 messagebox.showinfo("Success", f"Conversion completed. Output saved as: {output_file}")
             else:
-                messagebox.showerror("Error", "Conversion failed. Check console for details.")
+                messagebox.showerror("Error", "Conversion failed. Check logs for details.")
 
     def excel_to_form():
         excel_path = filedialog.askopenfilename(title="Select Excel File", filetypes=[("Excel files", "*.xlsx")])
         if excel_path:
             form_path = filedialog.askopenfilename(title="Select Word Form to Edit", filetypes=[("Word files", "*.docx")])
             if form_path:
-                output_file = fill_form_from_excel(excel_path, form_path)
+                output_file = fill_form_from_excel(excel_path, form_path, root)
                 if output_file:
                     messagebox.showinfo("Success", f"Form filled and saved as: {output_file}")
                 else:
-                    messagebox.showerror("Error", "Conversion failed. Check console for details.")
+                    messagebox.showerror("Error", "Conversion failed. Check logs for details.")
 
-    btn_form_to_excel = tk.Button(root, text="Form to Excel", command=form_to_excel, width=20)
-    btn_form_to_excel.pack(pady=20)
+    btn_form_to_excel = tk.Button(button_frame, text="Form to Excel", command=form_to_excel, width=20)
+    btn_form_to_excel.pack(side=tk.LEFT, padx=10)
 
-    btn_excel_to_form = tk.Button(root, text="Excel to Form", command=excel_to_form, width=20)
-    btn_excel_to_form.pack(pady=20)
+    btn_excel_to_form = tk.Button(button_frame, text="Excel to Form", command=excel_to_form, width=20)
+    btn_excel_to_form.pack(side=tk.LEFT, padx=10)
 
     root.mainloop()
 
