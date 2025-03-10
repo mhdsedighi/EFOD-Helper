@@ -2,6 +2,8 @@ import os
 import win32com.client as win32
 import pandas as pd
 import re
+from openpyxl import load_workbook
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 
 def export_table_to_excel(file_path, output_excel_path):
@@ -44,9 +46,15 @@ def export_table_to_excel(file_path, output_excel_path):
         # Get the first table
         table = doc.Tables(1)
 
+        # Verify Word table has 11 columns
+        if table.Columns.Count != 11:
+            print(f"Expected 11 columns in Word table, found {table.Columns.Count}")
+            doc.Close()
+            return
+
         # Prepare data structure
         table_data = []
-        checkbox_columns = range(4, 9)  # Columns 4 to 8 (1-based)
+        checkbox_columns = range(4, 9)  # Columns 4-8 (1-based: 4, 5, 6, 7, 8)
 
         # Sample text mapping for checkbox indices
         checkbox_text_map = {
@@ -63,8 +71,8 @@ def export_table_to_excel(file_path, output_excel_path):
             row_data = []
             checked_indices = []
 
-            # Iterate through columns
-            for col_idx in range(1, table.Columns.Count + 1):
+            # Iterate through all 11 columns
+            for col_idx in range(1, 12):  # 1-based: 1 to 11
                 cell = table.Cell(row_idx, col_idx)
                 # Get raw text
                 raw_text = cell.Range.Text
@@ -98,37 +106,66 @@ def export_table_to_excel(file_path, output_excel_path):
                             # Debug: Print raw cell content if problematic
                             if any(ord(c) < 32 and c != '\n' for c in raw_text):
                                 print(f"Row {row_idx}, Col {col_idx} raw content: {repr(raw_text)}")
-                # Add non-checkbox column data
-                elif col_idx < 4 or col_idx > 8:
-                    if col_idx <= 2:
-                        row_data.append(cell_text)  # Columns 1 and 2 first
-                    elif col_idx > 8:
-                        row_data.append(cell_text)  # Columns 9+ later
+                # Add specific columns to row_data
+                elif col_idx in [1, 2, 9, 10, 11]:  # Only these go to Excel
+                    if col_idx == 1:
+                        row_data.append(cell_text)  # Item Number
+                    elif col_idx == 2:
+                        row_data.append(cell_text)  # Description
+                    elif col_idx >= 9:
+                        row_data.append(cell_text)  # Category, Status, Notes
 
             # Determine text for checked checkboxes
             if len(checked_indices) == 0:
                 checked_text = ""  # No checkboxes checked
             elif len(checked_indices) == 1:
-                checked_text = checkbox_text_map.get(checked_indices[0], "")  # Single checkbox
+                checked_text = checkbox_text_map.get(checked_indices[0], "")
             else:
-                checked_text = "Error-multi checkbox"  # Multiple checkboxes
+                checked_text = "error-multi checkbox"
 
             # Insert checked text as the third column
-            row_data.insert(2, checked_text)
+            row_data.insert(2, checked_text)  # Puts "Checked Checkboxes" at index 2 (3rd column)
 
             table_data.append(row_data)
 
-        # Create column headers with "Checked Checkboxes" as third column
-        headers = [f"Column {i}" for i in range(1, 3)] + ["Checked Checkboxes"] + \
-                  [f"Column {i}" for i in range(3, 4)] + \
-                  [f"Column {i}" for i in range(9, table.Columns.Count + 1)]
+        # Define exactly 6 column headers for Excel
+        headers = [
+            "Annex Ref.",  # Word col 1
+            "Standard",  # Word col 2
+            "Difference",  # Generated from Word cols 4-8
+            "State Ref.",  # Word col 9
+            "Details",  # Word col 10
+            "Remark"  # Word col 11
+        ]
 
-        # Create DataFrame
-        df = pd.DataFrame(table_data, columns=headers[:len(table_data[0])])
+        # Create DataFrame with exactly 6 columns
+        df = pd.DataFrame(table_data, columns=headers)
 
-        # Export to Excel
+        # Export to Excel initially
         df.to_excel(output_excel_path, index=False, engine='openpyxl')
-        print(f"Table data exported to {output_excel_path} (Processed {len(table_data)} rows)")
+
+        # Load the workbook to modify it
+        wb = load_workbook(output_excel_path)
+        ws = wb.active
+
+        # Define the table range (A1 to F31 for 30 rows + header)
+        num_rows = len(table_data) + 1  # +1 for header
+        table_range = f"A1:F{num_rows}"
+
+        # Create an Excel table
+        tab = Table(displayName="FormDataTable", ref=table_range)
+        style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
+                               showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+        tab.tableStyleInfo = style
+        ws.add_table(tab)
+
+        # Freeze the first row (headers)
+        ws.freeze_panes = ws['A2']  # Freezes row 1
+
+        # Save the modified workbook
+        wb.save(output_excel_path)
+        print(
+            f"Table data exported to {output_excel_path} (Processed {len(table_data)} rows) with table and frozen headers")
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
