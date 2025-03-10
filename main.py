@@ -410,7 +410,7 @@ def fill_form_from_excel(excel_path, form_path, root):
 
 def gui():
     root = tk.Tk()
-    root.title("Form Converter")
+    root.title("EFOD Converter")
     root.geometry("800x400")  # Initial size
 
     # Frame for buttons
@@ -437,7 +437,7 @@ def gui():
     def excel_to_form():
         excel_path = filedialog.askopenfilename(title="Select Excel File", filetypes=[("Excel files", "*.xlsx")])
         if excel_path:
-            form_path = filedialog.askopenfilename(title="Select Word Form to Edit", filetypes=[("Word files", "*.docx")])
+            form_path = filedialog.askopenfilename(title="Select EFOD Form to Edit", filetypes=[("Word files", "*.docx")])
             if form_path:
                 output_file = fill_form_from_excel(excel_path, form_path, root)
                 if output_file:
@@ -445,10 +445,10 @@ def gui():
                 else:
                     messagebox.showerror("Error", "Conversion failed. Check logs for details.")
 
-    btn_form_to_excel = tk.Button(button_frame, text="Form to Excel", command=form_to_excel, width=20)
+    btn_form_to_excel = tk.Button(button_frame, text="EFOD to Excel", command=form_to_excel, width=20)
     btn_form_to_excel.pack(side=tk.LEFT, padx=10)
 
-    btn_excel_to_form = tk.Button(button_frame, text="Excel to Form", command=excel_to_form, width=20)
+    btn_excel_to_form = tk.Button(button_frame, text="Excel to EFOD", command=excel_to_form, width=20)
     btn_excel_to_form.pack(side=tk.LEFT, padx=10)
 
     root.mainloop()
