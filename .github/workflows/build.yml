@@ -3,7 +3,7 @@ name: Build Python Executable
 on:
   push:
     branches:
-      - main  # Trigger on pushes to the main branch (change if needed)
+      - master  # Trigger on pushes to the main branch (change if needed)
   workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
