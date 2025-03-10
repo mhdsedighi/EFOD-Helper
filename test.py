@@ -1,6 +1,7 @@
 import os
 import win32com.client as win32
 import pandas as pd
+import re
 
 
 def export_table_to_excel(file_path, output_excel_path):
@@ -65,8 +66,28 @@ def export_table_to_excel(file_path, output_excel_path):
             # Iterate through columns
             for col_idx in range(1, table.Columns.Count + 1):
                 cell = table.Cell(row_idx, col_idx)
-                # Clean cell text: remove control chars and strip
-                cell_text = ''.join(c for c in cell.Range.Text if ord(c) >= 32 or c == '\n').strip()
+                # Get raw text
+                raw_text = cell.Range.Text
+                # Split at first control character to get visible text
+                visible_text = ''
+                for char in raw_text:
+                    if ord(char) < 32 and char != '\n':  # Stop at control chars like \r, \x0b
+                        break
+                    visible_text += char
+                visible_text = visible_text.strip()
+                # If in first column, extract numeric part from visible text
+                if col_idx == 1:
+                    numeric_match = re.match(r'^\d+(?:\.\d+)?(?![.\d])', visible_text)
+                    if numeric_match:
+                        cell_text = numeric_match.group(0)
+                        print(
+                            f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, matched: {cell_text}, remainder: {repr(raw_text[len(visible_text):].strip())}")
+                    else:
+                        cell_text = visible_text  # Fallback to visible text if no match
+                        print(
+                            f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, cleaned: {cell_text} (no numeric match)")
+                else:
+                    cell_text = visible_text  # Use visible text for other columns
 
                 # Handle checkbox columns (4-8)
                 if col_idx in checkbox_columns:
@@ -75,8 +96,8 @@ def export_table_to_excel(file_path, output_excel_path):
                             if field.CheckBox.Value:
                                 checked_indices.append(str(col_idx))
                             # Debug: Print raw cell content if problematic
-                            if any(ord(c) < 32 and c != '\n' for c in cell.Range.Text):
-                                print(f"Row {row_idx}, Col {col_idx} raw content: {repr(cell.Range.Text)}")
+                            if any(ord(c) < 32 and c != '\n' for c in raw_text):
+                                print(f"Row {row_idx}, Col {col_idx} raw content: {repr(raw_text)}")
                 # Add non-checkbox column data
                 elif col_idx < 4 or col_idx > 8:
                     if col_idx <= 2:
