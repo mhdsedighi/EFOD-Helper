@@ -1,73 +1,102 @@
 import os
 import win32com.client as win32
+import pandas as pd
 
 
-def analyze_checkboxes_in_table(file_path):
+def export_table_to_excel(file_path, output_excel_path):
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return
 
     # Initialize Word application
     word = win32.Dispatch('Word.Application')
-    word.Visible = False  # Run in background
-    word.DisplayAlerts = False  # Suppress alerts
+    word.Visible = False
+    word.DisplayAlerts = False
 
     try:
         # Open the document
         doc = word.Documents.Open(os.path.abspath(file_path))
 
-        # Define Word constants manually
+        # Define Word constants
         WD_NO_PROTECTION = -1
 
-        # Check if the document is protected
-        protection_password = None  # Set to your password if known, e.g., "your_password"
-
+        # Handle protection
+        protection_password = None  # Set to your password if known
         if doc.ProtectionType != WD_NO_PROTECTION:
             print("Document is protected. Attempting to unprotect...")
             try:
                 if protection_password:
                     doc.Unprotect(protection_password)
                 else:
-                    doc.Unprotect()  # Try without password
+                    doc.Unprotect()
                 print("Document unprotected successfully.")
             except Exception as e:
-                print(f"Failed to unprotect document: {e}. Please provide password if applicable.")
+                print(f"Failed to unprotect document: {e}")
                 doc.Close()
                 return
 
-        checkboxes_found = False
-
-        # Assume the document is one big table; get the first table
         if doc.Tables.Count == 0:
             print("No tables found in the document.")
             doc.Close()
             return
 
-        table = doc.Tables(1)  # 1-based index in COM
+        # Get the first table
+        table = doc.Tables(1)
 
-        # Iterate through each row and column in the table
-        for row_idx in range(1, table.Rows.Count + 1):
+        # Prepare data structure
+        table_data = []
+        checkbox_columns = range(4, 9)  # Columns 4 to 8 (1-based)
+
+        # Iterate through rows (1-based indexing)
+        max_rows = min(30, table.Rows.Count)  # TEMPORARY: Limit to first 30 rows; comment out for all rows
+        for row_idx in range(1, max_rows + 1):  # Process up to max_rows
+            row_data = []
+            checked_indices = []
+
+            # Iterate through columns
             for col_idx in range(1, table.Columns.Count + 1):
                 cell = table.Cell(row_idx, col_idx)
-                # Check for form fields in the cell's range
-                for field in cell.Range.FormFields:
-                    if field.Type == 71:  # wdFieldFormCheckBox = 71
-                        checkboxes_found = True
-                        # Check if the checkbox is already checked
-                        checked_status = "checked" if field.CheckBox.Value else "unchecked"
-                        print(f"Checkbox found at Row {row_idx}, Column {col_idx} - Status: {checked_status}")
-                        # Do not modify: field.CheckBox.Value = True
+                # Clean cell text: remove control chars and strip
+                cell_text = ''.join(c for c in cell.Range.Text if ord(c) >= 32 or c == '\n').strip()
 
-        if not checkboxes_found:
-            print("No checkboxes found in the table.")
+                # Handle checkbox columns (4-8)
+                if col_idx in checkbox_columns:
+                    for field in cell.Range.FormFields:
+                        if field.Type == 71:  # wdFieldFormCheckBox
+                            if field.CheckBox.Value:
+                                checked_indices.append(str(col_idx))
+                            # Debug: Print raw cell content if problematic
+                            if any(ord(c) < 32 and c != '\n' for c in cell.Range.Text):
+                                print(f"Row {row_idx}, Col {col_idx} raw content: {repr(cell.Range.Text)}")
+                # Add non-checkbox column data
+                elif col_idx < 4 or col_idx > 8:
+                    if col_idx <= 2:
+                        row_data.append(cell_text)  # Columns 1 and 2 first
+                    elif col_idx > 8:
+                        row_data.append(cell_text)  # Columns 9+ later
 
-        # No need to save since we're not modifying anything
+            # Insert checked indices as the third column
+            checked_indices_str = ", ".join(checked_indices) if checked_indices else ""
+            row_data.insert(2, checked_indices_str)  # Insert at index 2 (third position, 0-based)
+
+            table_data.append(row_data)
+
+        # Create column headers with "Checked Checkboxes" as third column
+        headers = [f"Column {i}" for i in range(1, 3)] + ["Checked Checkboxes"] + \
+                  [f"Column {i}" for i in range(3, 4)] + \
+                  [f"Column {i}" for i in range(9, table.Columns.Count + 1)]
+
+        # Create DataFrame
+        df = pd.DataFrame(table_data, columns=headers[:len(table_data[0])])
+
+        # Export to Excel
+        df.to_excel(output_excel_path, index=False, engine='openpyxl')
+        print(f"Table data exported to {output_excel_path} (Processed {len(table_data)} rows)")
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
     finally:
-        # Clean up
         try:
             doc.Close()
         except:
@@ -80,7 +109,8 @@ def analyze_checkboxes_in_table(file_path):
 
 def main():
     file_path = os.path.join('form', 'form.docx')
-    analyze_checkboxes_in_table(file_path)
+    output_excel_path = os.path.join('form', 'form_data.xlsx')
+    export_table_to_excel(file_path, output_excel_path)
 
 
 if __name__ == "__main__":
