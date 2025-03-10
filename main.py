@@ -54,20 +54,20 @@ def export_table_to_excel(file_path, output_excel_path):
 
         # Prepare data structure
         table_data = []
-        checkbox_columns = range(4, 9)  # Columns 4-8 (1-based: 4, 5, 6, 7, 8)
+        checkbox_columns = range(4, 10)  # Columns 4-9 (1-based: 4, 5, 6, 7, 8, 9)
 
-        # Sample text mapping for checkbox indices
+        # Fixed checkbox text mapping
         checkbox_text_map = {
             '4': 'No Difference',
             '5': 'More Exacting',
             '6': 'Different in character',
             '7': 'Less protective or partially',
-            '8': 'Significant Difference'
+            '8': 'Significant Difference',
+            '9': 'Not Applicable'
         }
 
         # Iterate through rows (1-based indexing)
-        max_rows = table.Rows.Count
-        max_rows = min(30, table.Rows.Count)  # TEMPORARY: Limit to first 30 rows; comment out for all rows
+        max_rows = min(30, table.Rows.Count)  # Limit to first 30 rows; comment out to process all rows
         for row_idx in range(1, max_rows + 1):  # Process up to max_rows
             row_data = []
             checked_indices = []
@@ -80,7 +80,7 @@ def export_table_to_excel(file_path, output_excel_path):
                 # Split at first control character to get visible text
                 visible_text = ''
                 for char in raw_text:
-                    if ord(char) < 32 and char != '\n':  # Stop at control chars like \r, \x0b
+                    if ord(char) < 32 and char != '\n':
                         break
                     visible_text += char
                 visible_text = visible_text.strip()
@@ -92,13 +92,13 @@ def export_table_to_excel(file_path, output_excel_path):
                         print(
                             f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, matched: {cell_text}, remainder: {repr(raw_text[len(visible_text):].strip())}")
                     else:
-                        cell_text = visible_text  # Fallback to visible text if no match
+                        cell_text = visible_text
                         print(
                             f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, cleaned: {cell_text} (no numeric match)")
                 else:
-                    cell_text = visible_text  # Use visible text for other columns
+                    cell_text = visible_text
 
-                # Handle checkbox columns (4-8)
+                # Handle checkbox columns (4-9)
                 if col_idx in checkbox_columns:
                     for field in cell.Range.FormFields:
                         if field.Type == 71:  # wdFieldFormCheckBox
@@ -107,14 +107,18 @@ def export_table_to_excel(file_path, output_excel_path):
                             # Debug: Print raw cell content if problematic
                             if any(ord(c) < 32 and c != '\n' for c in raw_text):
                                 print(f"Row {row_idx}, Col {col_idx} raw content: {repr(raw_text)}")
-                # Add specific columns to row_data
-                elif col_idx in [1, 2, 9, 10, 11]:  # Only these go to Excel
+                # Add specific columns to row_data in desired order
+                elif col_idx in [1, 2, 3, 10, 11]:  # Only these go to Excel
                     if col_idx == 1:
-                        row_data.append(cell_text)  # Item Number
+                        row_data.append(cell_text)  # Annex Ref. (Excel col 1)
                     elif col_idx == 2:
-                        row_data.append(cell_text)  # Description
-                    elif col_idx >= 9:
-                        row_data.append(cell_text)  # Category, Status, Notes
+                        row_data.append(cell_text)  # Standard (Excel col 2)
+                    elif col_idx == 3:
+                        row_data.append(cell_text)  # State Ref. (Excel col 4)
+                    elif col_idx == 10:
+                        row_data.append(cell_text)  # Details (Excel col 5)
+                    elif col_idx == 11:
+                        row_data.append(cell_text)  # Remark (Excel col 6)
 
             # Determine text for checked checkboxes
             if len(checked_indices) == 0:
@@ -124,19 +128,20 @@ def export_table_to_excel(file_path, output_excel_path):
             else:
                 checked_text = "error-multi checkbox"
 
-            # Insert checked text as the third column
-            row_data.insert(2, checked_text)  # Puts "Checked Checkboxes" at index 2 (3rd column)
+            # Insert checked text as the third column (Excel col 3)
+            row_data.insert(2, checked_text)  # Inserts "Difference" at index 2
+            # Now row_data = [col1, col2, checkboxes, col3, col10, col11]
 
             table_data.append(row_data)
 
         # Define exactly 6 column headers for Excel
         headers = [
-            "Annex Ref.",  # Word col 1
-            "Standard",  # Word col 2
-            "Difference",  # Generated from Word cols 4-8
-            "State Ref.",  # Word col 9
-            "Details",  # Word col 10
-            "Remark"  # Word col 11
+            "Annex Ref.",      # Word col 1
+            "Standard",        # Word col 2
+            "Difference",      # Checkboxes from Word cols 4-9
+            "State Ref.",      # Word col 3
+            "Details",         # Word col 10
+            "Remark"           # Word col 11
         ]
 
         # Create DataFrame with exactly 6 columns
@@ -149,7 +154,7 @@ def export_table_to_excel(file_path, output_excel_path):
         wb = load_workbook(output_excel_path)
         ws = wb.active
 
-        # Define the table range (A1 to F31 for 30 rows + header)
+        # Define the table range (A1 to F<rows+1> for 6 columns)
         num_rows = len(table_data) + 1  # +1 for header
         table_range = f"A1:F{num_rows}"
 
