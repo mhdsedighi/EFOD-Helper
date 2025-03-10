@@ -2,7 +2,7 @@ import os
 import win32com.client as win32
 
 
-def check_all_checkboxes_com(file_path):
+def analyze_checkboxes_in_table(file_path):
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return
@@ -18,15 +18,11 @@ def check_all_checkboxes_com(file_path):
 
         # Define Word constants manually
         WD_NO_PROTECTION = -1
-        WD_ALLOW_ONLY_FORM_FIELDS = 2
-        WD_FORMAT_XML_DOCUMENT = 12  # .docx format
 
         # Check if the document is protected
-        was_protected = False
         protection_password = None  # Set to your password if known, e.g., "your_password"
 
         if doc.ProtectionType != WD_NO_PROTECTION:
-            was_protected = True
             print("Document is protected. Attempting to unprotect...")
             try:
                 if protection_password:
@@ -41,32 +37,31 @@ def check_all_checkboxes_com(file_path):
 
         checkboxes_found = False
 
-        # Iterate through form fields and check only checkboxes
-        for field in doc.FormFields:
-            if field.Type == 71:  # wdFieldFormCheckBox = 71
-                checkboxes_found = True
-                field.CheckBox.Value = True
-                print("Checked a legacy checkbox.")
+        # Assume the document is one big table; get the first table
+        if doc.Tables.Count == 0:
+            print("No tables found in the document.")
+            doc.Close()
+            return
 
-        # Reapply protection if it was originally protected
-        if was_protected:
-            try:
-                if protection_password:
-                    doc.Protect(WD_ALLOW_ONLY_FORM_FIELDS, True, protection_password)
-                else:
-                    doc.Protect(WD_ALLOW_ONLY_FORM_FIELDS, True)
-                print("Reapplied form protection.")
-            except Exception as e:
-                print(f"Failed to reapply protection: {e}")
+        table = doc.Tables(1)  # 1-based index in COM
 
-        # Save the modified document
-        output_path = os.path.join('form', 'modified_form.docx')
-        doc.SaveAs(os.path.abspath(output_path), FileFormat=WD_FORMAT_XML_DOCUMENT)
+        # Iterate through each row and column in the table
+        for row_idx in range(1, table.Rows.Count + 1):
+            for col_idx in range(1, table.Columns.Count + 1):
+                cell = table.Cell(row_idx, col_idx)
+                # Check for form fields in the cell's range
+                for field in cell.Range.FormFields:
+                    if field.Type == 71:  # wdFieldFormCheckBox = 71
+                        checkboxes_found = True
+                        # Check if the checkbox is already checked
+                        checked_status = "checked" if field.CheckBox.Value else "unchecked"
+                        print(f"Checkbox found at Row {row_idx}, Column {col_idx} - Status: {checked_status}")
+                        # Do not modify: field.CheckBox.Value = True
 
-        if checkboxes_found:
-            print(f"Checkboxes checked. Modified file saved as: {output_path}")
-        else:
-            print("No form field checkboxes found in the document.")
+        if not checkboxes_found:
+            print("No checkboxes found in the table.")
+
+        # No need to save since we're not modifying anything
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
@@ -85,7 +80,7 @@ def check_all_checkboxes_com(file_path):
 
 def main():
     file_path = os.path.join('form', 'form.docx')
-    check_all_checkboxes_com(file_path)
+    analyze_checkboxes_in_table(file_path)
 
 
 if __name__ == "__main__":
