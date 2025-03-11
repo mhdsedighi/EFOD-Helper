@@ -32,6 +32,31 @@ def setup_logging(text_widget, root):
     logging.getLogger().handlers = []  # Clear default handlers
     logging.getLogger().addHandler(handler)
 
+class Tooltip: # Tooltip class for hover text
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def show_tooltip(self, event):
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+
+        self.tooltip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)  # Remove window decorations
+        tw.wm_geometry(f"+{x}+{y}")
+
+        label = tk.Label(tw, text=self.text, background="#ffffe0", relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide_tooltip(self, event):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
+
 def export_table_to_excel(file_path, output_dir, root):
     if not os.path.exists(file_path):
         logging.error(f"File not found: {file_path}")
@@ -676,15 +701,19 @@ def gui():
 
     btn_form_to_excel = tk.Button(button_frame, text="EFOD to Excel", command=form_to_excel, width=20)
     btn_form_to_excel.pack(side=tk.LEFT, padx=10)
+    Tooltip(btn_form_to_excel, "Convert an EFOD Word Form to an Excel spreadsheet.")
 
     btn_excel_to_form = tk.Button(button_frame, text="Excel to EFOD", command=excel_to_form, width=20)
     btn_excel_to_form.pack(side=tk.LEFT, padx=10)
+    Tooltip(btn_excel_to_form, "Fill an EFOD Word Form with the data from the Excel file.")
 
     btn_xml_to_excel = tk.Button(button_frame, text="SAP Crystal Reports to Excel", command=xml_to_excel_conversion, width=20)
     btn_xml_to_excel.pack(side=tk.LEFT, padx=10)
+    Tooltip(btn_xml_to_excel, "Convert a SAP Crystal Reports XML Export (for a country) to an Excel spreadsheet.")
 
     btn_excel_on_excel = tk.Button(button_frame, text="Excel on Excel", command=excel_on_excel_conversion, width=20)
     btn_excel_on_excel.pack(side=tk.LEFT, padx=10)
+    Tooltip(btn_excel_on_excel, "Fill one Excel file with data from another based on matching Annex Ref.")
 
     root.mainloop()
 
