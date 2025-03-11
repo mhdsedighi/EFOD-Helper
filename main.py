@@ -306,6 +306,16 @@ def fill_form_from_excel(excel_path, form_path, root):
             logging.error(f"Expected 11 columns in Word table, found {table.Columns.Count}")
             doc.Close()
             return None
+
+        # Check if number of rows matches
+        excel_rows = len(df)
+        word_rows = table.Rows.Count
+        if excel_rows != word_rows:
+            logging.error(f"Row count mismatch: Excel has {excel_rows} rows, Word table has {word_rows} rows")
+            messagebox.showerror("Error", f"Row count mismatch: Excel has {excel_rows} rows, Word table has {word_rows} rows")
+            doc.Close()
+            return None
+        logging.info(f"Row count matches: {excel_rows} rows in both Excel and Word table")
         root.update()
 
         # Checkbox mapping with first 3 letters (case-insensitive)
@@ -318,8 +328,9 @@ def fill_form_from_excel(excel_path, form_path, root):
             'not': 9   # Not Applicable
         }
 
-        # Iterate through rows (limited to 30)
-        max_rows = min(30, table.Rows.Count, len(df))
+        # Iterate through rows
+        max_rows = table.Rows.Count
+        # max_rows = min(30, table.Rows.Count, len(df))  # Still respects the 30-row limit
         logging.info(f"Processing up to {max_rows} rows")
         root.update()
         for row_idx in range(1, max_rows + 1):
