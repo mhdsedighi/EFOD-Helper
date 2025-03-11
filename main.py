@@ -522,6 +522,98 @@ def xml_to_excel(xml_path, output_dir, root):
         logging.error(f"An error occurred in xml_to_excel: {e}")
         return None
 
+
+def excel_on_excel(sample_excel_path, fillable_excel_path, root):
+    if not os.path.exists(sample_excel_path):
+        logging.error(f"Sample Excel file not found: {sample_excel_path}")
+        return None
+    if not os.path.exists(fillable_excel_path):
+        logging.error(f"Fillable Excel file not found: {fillable_excel_path}")
+        return None
+
+    # Read sample Excel data, forcing first column as string
+    try:
+        sample_df = pd.read_excel(sample_excel_path, dtype={0: str})
+        logging.info("Sample Excel data loaded successfully")
+        root.update()
+    except Exception as e:
+        logging.error(f"Failed to read sample Excel file: {e}")
+        return None
+
+    # Read fillable Excel data, forcing first column as string
+    try:
+        fillable_df = pd.read_excel(fillable_excel_path, dtype={0: str})
+        logging.info("Fillable Excel data loaded successfully")
+        root.update()
+    except Exception as e:
+        logging.error(f"Failed to read fillable Excel file: {e}")
+        return None
+
+    # Create a dictionary from sample_df for quick lookup by first column, normalizing values
+    sample_dict = {str(row.iloc[0]).strip(): row for index, row in sample_df.iterrows()}
+
+    # Process fillable_df: Update rows where first column matches
+    for index, row in fillable_df.iterrows():
+        fillable_ref = str(row.iloc[0]).strip()  # Normalize: convert to string and strip whitespace
+        sample_row = sample_dict.get(fillable_ref)
+
+        # Debug: Log the normalized values being compared
+        logging.debug(
+            f"Row {index + 2}: Fillable first column (normalized) = {repr(fillable_ref)}, Sample first column match (normalized) = {repr(sample_row.iloc[0].strip() if sample_row is not None else None)}")
+
+        if sample_row is not None:
+            # If there's a match, update the entire row in fillable_df
+            fillable_df.iloc[index] = sample_row
+            logging.info(f"Row {index + 2}: Updated with data from sample Excel for first column = {fillable_ref}")
+        else:
+            logging.debug(f"Row {index + 2}: No match found for first column = {fillable_ref}, leaving row unchanged")
+        root.update()
+
+    # Generate output filename
+    output_dir = os.path.dirname(fillable_excel_path)
+    base_name = os.path.splitext(os.path.basename(fillable_excel_path))[0] + "_filled.xlsx"
+    output_excel_path = os.path.join(output_dir, base_name)
+    counter = 1
+    while os.path.exists(output_excel_path):
+        output_excel_path = os.path.join(output_dir,
+                                         f"{os.path.splitext(os.path.basename(fillable_excel_path))[0]}_filled_{counter}.xlsx")
+        counter += 1
+
+    # Export to Excel
+    try:
+        fillable_df.to_excel(output_excel_path, index=False, engine='openpyxl')
+
+        # Load the workbook to modify it
+        wb = load_workbook(output_excel_path)
+        ws = wb.active
+
+        # Define the table range dynamically based on column count
+        num_rows = len(fillable_df) + 1  # +1 for header
+        num_cols = len(fillable_df.columns)
+        table_range = f"A1:{chr(64 + num_cols)}{num_rows}"
+
+        # Create an Excel table
+        tab = Table(displayName="FormDataTable", ref=table_range)
+        style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
+                               showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+        tab.tableStyleInfo = style
+        ws.add_table(tab)
+
+        # Freeze the first row (headers)
+        ws.freeze_panes = ws['A2']  # Freezes row 1
+
+        # Save the modified workbook
+        wb.save(output_excel_path)
+        logging.info(
+            f"Excel data processed and saved to {output_excel_path} (Processed {len(fillable_df)} rows) with table and frozen headers")
+        root.update()
+        return output_excel_path
+
+    except Exception as e:
+        logging.error(f"An error occurred in excel_on_excel: {e}")
+        return None
+
+
 def gui():
     root = tk.Tk()
     root.title("EFOD Converter")
@@ -569,6 +661,19 @@ def gui():
             else:
                 messagebox.showerror("Error", "Conversion failed. Check logs for details.")
 
+    def excel_on_excel_conversion():
+        sample_excel_path = filedialog.askopenfilename(title="Select Sample Excel File",
+                                                       filetypes=[("Excel files", "*.xlsx")])
+        if sample_excel_path:
+            fillable_excel_path = filedialog.askopenfilename(title="Select Fillable Excel File",
+                                                             filetypes=[("Excel files", "*.xlsx")])
+            if fillable_excel_path:
+                output_file = excel_on_excel(sample_excel_path, fillable_excel_path, root)
+                if output_file:
+                    messagebox.showinfo("Success", f"Excel filled and saved as: {output_file}")
+                else:
+                    messagebox.showerror("Error", "Conversion failed. Check logs for details.")
+
     btn_form_to_excel = tk.Button(button_frame, text="EFOD to Excel", command=form_to_excel, width=20)
     btn_form_to_excel.pack(side=tk.LEFT, padx=10)
 
@@ -578,7 +683,11 @@ def gui():
     btn_xml_to_excel = tk.Button(button_frame, text="SAP Crystal Reports to Excel", command=xml_to_excel_conversion, width=20)
     btn_xml_to_excel.pack(side=tk.LEFT, padx=10)
 
+    btn_excel_on_excel = tk.Button(button_frame, text="Excel on Excel", command=excel_on_excel_conversion, width=20)
+    btn_excel_on_excel.pack(side=tk.LEFT, padx=10)
+
     root.mainloop()
+
 
 if __name__ == "__main__":
     gui()
