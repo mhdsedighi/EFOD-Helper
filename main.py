@@ -308,14 +308,14 @@ def fill_form_from_excel(excel_path, form_path, root):
             return None
         root.update()
 
-        # Checkbox mapping (reverse of export)
+        # Checkbox mapping with first 3 letters (case-insensitive)
         checkbox_text_map = {
-            'No Difference': 4,
-            'More Exacting': 5,
-            'Different in character': 6,
-            'Less protective or partially': 7,
-            'Significant Difference': 8,
-            'Not Applicable': 9
+            'nod': 4,  # No Difference
+            'mor': 5,  # More Exacting
+            'dif': 6,  # Different in character
+            'les': 7,  # Less protective or partially
+            'sig': 8,  # Significant Difference
+            'not': 9   # Not Applicable
         }
 
         # Iterate through rows (limited to 30)
@@ -360,21 +360,23 @@ def fill_form_from_excel(excel_path, form_path, root):
                 except Exception as e:
                     logging.error(f"Error resetting checkbox in Row {row_idx}, Col {col_idx}: {e}")
 
-            # Then check the appropriate box based on Excel data
+            # Check the appropriate box based on Excel data using first 3 letters
             diff_value = row_data["Difference"]
-            if pd.notna(diff_value) and diff_value != "error-multi checkbox" and diff_value in checkbox_text_map:
-                col_idx = checkbox_text_map[diff_value]
-                try:
-                    cell = table.Cell(row_idx, col_idx)
-                    if cell.Range.FormFields.Count == 0:
-                        logging.warning(f"No form fields to check in Row {row_idx}, Col {col_idx}")
-                    for field in cell.Range.FormFields:
-                        if field.Type == 71:  # wdFieldFormCheckBox
-                            field.CheckBox.Value = True
-                            logging.debug(f"Checked checkbox in Row {row_idx}, Col {col_idx} for {diff_value}")
-                except Exception as e:
-                    logging.error(f"Error checking checkbox in Row {row_idx}, Col {col_idx}: {e}")
-            root.update()  # Update after checkboxes
+            if pd.notna(diff_value) and diff_value != "error-multi checkbox":
+                # Remove leading spaces and convert to lowercase, take first 3 letters
+                diff_key = str(diff_value).lstrip().lower()[:3]
+                if diff_key in checkbox_text_map:
+                    col_idx = checkbox_text_map[diff_key]
+                    try:
+                        cell = table.Cell(row_idx, col_idx)
+                        if cell.Range.FormFields.Count == 0:
+                            logging.warning(f"No form fields to check in Row {row_idx}, Col {col_idx}")
+                        for field in cell.Range.FormFields:
+                            if field.Type == 71:  # wdFieldFormCheckBox
+                                field.CheckBox.Value = True
+                    except Exception as e:
+                        logging.error(f"Error checking checkbox in Row {row_idx}, Col {col_idx}: {e}")
+            root.update()
 
         # Save the modified document with a new name
         output_form_path = os.path.splitext(form_path)[0] + "_edited.docx"
