@@ -7,6 +7,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 import logging
+import xml.etree.ElementTree as ET
 
 # Custom logging handler to output to a Tkinter Text widget
 class TextHandler(logging.Handler):
@@ -236,7 +237,6 @@ def export_table_to_excel(file_path, output_dir, root):
         except:
             pass
 
-
 def fill_form_from_excel(excel_path, form_path, root):
     if not os.path.exists(excel_path):
         logging.error(f"Excel file not found: {excel_path}")
@@ -407,6 +407,107 @@ def fill_form_from_excel(excel_path, form_path, root):
         except:
             pass
 
+def xml_to_excel(xml_path, output_dir, root):
+    if not os.path.exists(xml_path):
+        logging.error(f"XML file not found: {xml_path}")
+        return None
+
+    try:
+        # Parse the XML file
+        tree = ET.parse(xml_path)
+        xml_root = tree.getroot()
+
+        # Define namespaces
+        namespaces = {'ns': 'urn:crystal-reports:schemas:report-detail'}
+
+        # Extract relevant data
+        table_data = []
+        for details in xml_root.findall('.//ns:Details', namespaces):
+            row_data = []
+            annex_ref = details.find('.//ns:Field[@Name="AnnexReferenceNumber1"]/ns:Value', namespaces)
+            standard = details.find('.//ns:Field[@Name="SARP11"]/ns:Value', namespaces)
+            state_ref = details.find('.//ns:Field[@Name="StateReference1"]/ns:Value', namespaces)
+            difference = details.find('.//ns:Field[@Name="StateDifferenceLevel1"]/ns:Value', namespaces)
+            state_difference = details.find('.//ns:Field[@Name="StateDifference1"]/ns:Value', namespaces)
+            state_comments = details.find('.//ns:Field[@Name="StateComments1"]/ns:Value', namespaces)
+
+            # Check if elements are found and extract text
+            annex_ref_text = annex_ref.text if annex_ref is not None else "Not Found"
+            standard_text = standard.text if standard is not None else "Not Found"
+            state_ref_text = state_ref.text if state_ref is not None else "Not Found"
+            difference_text = difference.text if difference is not None else "Not Found"
+            state_difference_text = state_difference.text if state_difference is not None else "Not Found"
+            state_comments_text = state_comments.text if state_comments is not None else "Not Found"
+
+            # Log the extracted data
+            logging.debug(f"Annex Ref: {annex_ref_text}, Standard: {standard_text}, State Ref: {state_ref_text}, "
+                          f"Difference: {difference_text}, Details: {state_difference_text}, Remark: {state_comments_text}")
+
+            row_data.append(annex_ref_text)
+            row_data.append(standard_text)
+            row_data.append(difference_text)
+            row_data.append(state_ref_text)
+            row_data.append(state_difference_text)
+            row_data.append(state_comments_text)
+
+            table_data.append(row_data)
+
+        if not table_data:
+            logging.error("No data extracted from XML.")
+            return None
+
+        # Define column headers for Excel
+        headers = [
+            "Annex Ref.",
+            "Standard",
+            "Difference",
+            "State Ref.",
+            "Details",
+            "Remark"
+        ]
+
+        # Create DataFrame
+        df = pd.DataFrame(table_data, columns=headers)
+        logging.debug(f"DataFrame created with data:\n{df}")
+
+        # Generate unique output filename
+        base_name = "output_from_xml.xlsx"
+        output_excel_path = os.path.join(output_dir, base_name)
+        counter = 1
+        while os.path.exists(output_excel_path):
+            output_excel_path = os.path.join(output_dir, f"output_from_xml_{counter}.xlsx")
+            counter += 1
+
+        # Export to Excel initially
+        df.to_excel(output_excel_path, index=False, engine='openpyxl')
+
+        # Load the workbook to modify it
+        wb = load_workbook(output_excel_path)
+        ws = wb.active
+
+        # Define the table range (A1 to F<rows+1> for 6 columns)
+        num_rows = len(table_data) + 1  # +1 for header
+        table_range = f"A1:F{num_rows}"
+
+        # Create an Excel table
+        tab = Table(displayName="FormDataTable", ref=table_range)
+        style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
+                               showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+        tab.tableStyleInfo = style
+        ws.add_table(tab)
+
+        # Freeze the first row (headers)
+        ws.freeze_panes = ws['A2']  # Freezes row 1
+
+        # Save the modified workbook
+        wb.save(output_excel_path)
+        logging.info(f"XML data exported to {output_excel_path} (Processed {len(table_data)} rows) with table and frozen headers")
+        root.update()
+        return output_excel_path
+
+    except Exception as e:
+        logging.error(f"An error occurred in xml_to_excel: {e}")
+        return None
 
 def gui():
     root = tk.Tk()
@@ -445,14 +546,26 @@ def gui():
                 else:
                     messagebox.showerror("Error", "Conversion failed. Check logs for details.")
 
+    def xml_to_excel_conversion():
+        xml_path = filedialog.askopenfilename(title="Select XML File of a country, Exported from SAP Crystal Reports", filetypes=[("XML files", "*.xml")])
+        if xml_path:
+            output_dir = os.path.dirname(xml_path)
+            output_file = xml_to_excel(xml_path, output_dir, root)
+            if output_file:
+                messagebox.showinfo("Success", f"Conversion completed. Output saved as: {output_file}")
+            else:
+                messagebox.showerror("Error", "Conversion failed. Check logs for details.")
+
     btn_form_to_excel = tk.Button(button_frame, text="EFOD to Excel", command=form_to_excel, width=20)
     btn_form_to_excel.pack(side=tk.LEFT, padx=10)
 
     btn_excel_to_form = tk.Button(button_frame, text="Excel to EFOD", command=excel_to_form, width=20)
     btn_excel_to_form.pack(side=tk.LEFT, padx=10)
 
-    root.mainloop()
+    btn_xml_to_excel = tk.Button(button_frame, text="SAP Crystal Reports to Excel", command=xml_to_excel_conversion, width=20)
+    btn_xml_to_excel.pack(side=tk.LEFT, padx=10)
 
+    root.mainloop()
 
 if __name__ == "__main__":
     gui()
