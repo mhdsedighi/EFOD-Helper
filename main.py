@@ -184,12 +184,12 @@ def export_table_to_excel(file_path, output_dir, root):
         # Create DataFrame with exactly 6 columns
         df = pd.DataFrame(table_data, columns=headers)
 
-        # Generate unique output filename
-        base_name = "output.xlsx"
+        # Generate output filename
+        base_name = os.path.splitext(os.path.basename(file_path))[0] + ".xlsx"
         output_excel_path = os.path.join(output_dir, base_name)
         counter = 1
         while os.path.exists(output_excel_path):
-            output_excel_path = os.path.join(output_dir, f"output_{counter}.xlsx")
+            output_excel_path = os.path.join(output_dir, f"{os.path.splitext(base_name)[0]}_{counter}.xlsx")
             counter += 1
 
         # Export to Excel initially
