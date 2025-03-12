@@ -1,4 +1,5 @@
 import os
+import shutil
 import win32com.client as win32
 import pandas as pd
 import re
@@ -282,6 +283,22 @@ def fill_form_from_excel(excel_path, form_path, root):
         logging.error(f"Failed to read Excel file: {e}")
         return None
 
+    # Duplicate the form file
+    try:
+        output_dir = os.path.dirname(form_path)
+        base_name = os.path.splitext(os.path.basename(form_path))[0]
+        output_form_path = os.path.join(output_dir, f"{base_name}_edited.docx")
+        counter = 1
+        while os.path.exists(output_form_path):
+            output_form_path = os.path.join(output_dir, f"{base_name}_edited_{counter}.docx")
+            counter += 1
+        shutil.copy2(form_path, output_form_path)  # Copy the file preserving metadata
+        logging.info(f"Created duplicate form: {output_form_path}")
+        root.update()
+    except Exception as e:
+        logging.error(f"Failed to duplicate form file: {e}")
+        return None
+
     # Initialize Word application
     try:
         word = win32.Dispatch('Word.Application')
@@ -294,10 +311,10 @@ def fill_form_from_excel(excel_path, form_path, root):
         return None
 
     try:
-        # Open the document
-        logging.debug(f"Attempting to open document: {form_path}")
-        doc = word.Documents.Open(os.path.abspath(form_path))
-        logging.info(f"Opened document: {form_path}")
+        # Open the duplicated document
+        logging.debug(f"Attempting to open document: {output_form_path}")
+        doc = word.Documents.Open(os.path.abspath(output_form_path))
+        logging.info(f"Opened document: {output_form_path}")
         root.update()
 
         # Get the first table
@@ -405,7 +422,7 @@ def fill_form_from_excel(excel_path, form_path, root):
                 # NaN or "error-multi checkbox": all checkboxes remain unchecked
                 logging.debug(f"No valid Difference value '{diff_value}' in Row {row_idx} - all checkboxes unchecked")
 
-            # Check for wrongly checked boxes (shouldn't happen due to unchecking above, but kept for safety)
+            # Check for wrongly checked boxes (safety net)
             for col_idx in range(4, 10):
                 if col_idx != expected_col:
                     try:
@@ -418,11 +435,11 @@ def fill_form_from_excel(excel_path, form_path, root):
                         logging.error(f"Error checking checkbox in Row {row_idx}, Col {col_idx}: {e}")
             root.update()
 
-        # Save changes to the original document
+        # Save changes to the duplicated document
         doc.Save()
-        logging.info(f"Changes saved to original document: {form_path}")
+        logging.info(f"Changes saved to duplicated document: {output_form_path}")
         root.update()
-        return form_path
+        return output_form_path
 
     except Exception as e:
         logging.error(f"An error occurred in fill_form_from_excel: {e}")
