@@ -300,29 +300,12 @@ def fill_form_from_excel(excel_path, form_path, root):
         logging.info(f"Opened document: {form_path}")
         root.update()
 
-        # Define Word constants
-        WD_NO_PROTECTION = -1
-        wdAllowOnlyFormFields = 2  # Protection type for form fields only
-
-        # Check protection type (for logging/info purposes, no unprotection)
-        if doc.ProtectionType == WD_NO_PROTECTION:
-            logging.info("Document is not protected")
-        elif doc.ProtectionType == wdAllowOnlyFormFields:
-            logging.info("Document is protected with form fields only - editing form fields directly")
-        else:
-            logging.error(f"Document has unsupported protection type: {doc.ProtectionType}. Must be unprotected or form-fields-only.")
-            doc.Close()
-            return None
-        root.update()
-
-        logging.debug("Checking table count")
+        # Get the first table
         if doc.Tables.Count == 0:
             logging.error("No tables found in the document.")
             doc.Close()
             return None
 
-        # Get the first table
-        logging.debug("Accessing first table")
         table = doc.Tables(1)
 
         # Verify Word table has 11 columns
@@ -343,89 +326,103 @@ def fill_form_from_excel(excel_path, form_path, root):
         logging.info(f"Row count matches: {excel_rows} rows in both Excel and Word table")
         root.update()
 
-        # Checkbox mapping with first 3 letters (case-insensitive)
+        # Checkbox mapping with both short and full forms (case-insensitive)
         checkbox_text_map = {
-            'nod': 4,  # No Difference
-            'mor': 5,  # More Exacting
-            'dif': 6,  # Different in character
-            'les': 7,  # Less protective or partially
-            'sig': 8,  # Significant Difference
-            'not': 9   # Not Applicable
+            'no': 4,                # Short form
+            'no difference': 4,     # Full form
+            'more': 5,              # Short form
+            'more exacting': 5,     # Full form
+            'different': 6,         # Short form
+            'different in character': 6,  # Full form
+            'less': 7,              # Short form
+            'less protective or partially': 7,  # Full form
+            'significant': 8,       # Short form
+            'significant difference': 8,  # Full form
+            'not': 9,               # Short form
+            'not applicable': 9     # Full form
         }
 
         # Iterate through rows
         max_rows = table.Rows.Count
-        # max_rows = min(30, table.Rows.Count, len(df))  # Still respects the 30-row limit
-        logging.info(f"Processing up to {max_rows} rows")
+        # max_rows = min(30, table.Rows.Count)  # Limit to first 30 rows; co
+        logging.info(f"Processing {max_rows} rows")
         root.update()
         for row_idx in range(1, max_rows + 1):
             row_data = df.iloc[row_idx - 1]  # 0-based index for pandas
 
-            # Skip modifying columns 1 and 2 (as per original requirement)
-            # Fill columns 3, 10, 11 (assuming these are text form fields)
+            # Fill text fields (columns 3, 10, 11) without changing case
             for col_idx, value in [(3, row_data["State Ref."]), (10, row_data["Details"]), (11, row_data["Remark"])]:
                 try:
                     cell = table.Cell(row_idx, col_idx)
                     if cell.Range.FormFields.Count > 0:
-                        # Use the first form field in the cell (assuming text field)
                         field = cell.Range.FormFields(1)
                         if field.Type == 70:  # wdFieldFormTextInput
+                            # Preserve original case, handle NaN
                             field.Result = str(value) if pd.notna(value) else ""
-                            logging.debug(f"Set text form field in Row {row_idx}, Col {col_idx}: {value}")
+                            logging.debug(f"Set text field in Row {row_idx}, Col {col_idx}: {value}")
                         else:
-                            logging.warning(f"Expected text form field, found type {field.Type} in Row {row_idx}, Col {col_idx}")
+                            logging.warning(f"Expected text field, found type {field.Type} in Row {row_idx}, Col {col_idx}")
                     else:
-                        logging.warning(f"No form field found in Row {row_idx}, Col {col_idx} - skipping text update")
+                        logging.warning(f"No form field in Row {row_idx}, Col {col_idx} - skipping")
                 except Exception as e:
                     logging.error(f"Failed to set text in Row {row_idx}, Col {col_idx}: {e}")
-            root.update()  # Update after text fields
+            root.update()
 
-            # Handle checkboxes (columns 4-9): Reset all to unchecked first
-            for col_idx in range(4, 10):  # Columns 4-9
+            # Handle checkboxes (columns 4-9)
+            diff_value = row_data["Difference"]
+            expected_col = None
+
+            # First, uncheck all checkboxes in columns 4-9
+            for col_idx in range(4, 10):
                 try:
                     cell = table.Cell(row_idx, col_idx)
-                    if cell.Range.FormFields.Count == 0:
-                        logging.warning(f"No form fields in Row {row_idx}, Col {col_idx}")
-                        continue
-                    for field in cell.Range.FormFields:
-                        if field.Type == 71:  # wdFieldFormCheckBox
-                            field.CheckBox.Value = False  # Uncheck all boxes
-                            logging.debug(f"Unchecked checkbox in Row {row_idx}, Col {col_idx}")
-                        else:
-                            logging.warning(f"Unexpected field type {field.Type} in Row {row_idx}, Col {col_idx}")
-                except Exception as e:
-                    logging.error(f"Error resetting checkbox in Row {row_idx}, Col {col_idx}: {e}")
-
-            # Check the appropriate box based on Excel data using first 3 letters
-            diff_value = row_data["Difference"]
-            if pd.notna(diff_value) and diff_value != "error-multi checkbox":
-                # Remove leading spaces and convert to lowercase, take first 3 letters
-                diff_key = str(diff_value).lstrip().lower()[:3]
-                if diff_key in checkbox_text_map:
-                    col_idx = checkbox_text_map[diff_key]
-                    try:
-                        cell = table.Cell(row_idx, col_idx)
-                        if cell.Range.FormFields.Count == 0:
-                            logging.warning(f"No form fields to check in Row {row_idx}, Col {col_idx}")
+                    if cell.Range.FormFields.Count > 0:
                         for field in cell.Range.FormFields:
                             if field.Type == 71:  # wdFieldFormCheckBox
-                                field.CheckBox.Value = True
+                                field.CheckBox.Value = False
+                                logging.debug(f"Unchecked box in Row {row_idx}, Col {col_idx}")
+                except Exception as e:
+                    logging.error(f"Error unchecking checkbox in Row {row_idx}, Col {col_idx}: {e}")
+
+            # Set the correct checkbox or handle undefined value
+            if pd.notna(diff_value) and diff_value != "error-multi checkbox":
+                diff_key = str(diff_value).strip().lower()  # Normalize for comparison
+                if diff_key in checkbox_text_map:
+                    expected_col = checkbox_text_map[diff_key]
+                    try:
+                        cell = table.Cell(row_idx, expected_col)
+                        if cell.Range.FormFields.Count > 0:
+                            for field in cell.Range.FormFields:
+                                if field.Type == 71:  # wdFieldFormCheckBox
+                                    field.CheckBox.Value = True
+                                    logging.debug(f"Checked box in Row {row_idx}, Col {expected_col}: {diff_value}")
+                    except Exception as e:
+                        logging.error(f"Error setting checkbox in Row {row_idx}, Col {expected_col}: {e}")
+                else:
+                    # Undefined value: all checkboxes remain unchecked, log in "red" (as error for visibility)
+                    logging.error(f"Unrecognized Difference value '{diff_value}' in Row {row_idx} - all checkboxes unchecked")
+            else:
+                # NaN or "error-multi checkbox": all checkboxes remain unchecked
+                logging.debug(f"No valid Difference value '{diff_value}' in Row {row_idx} - all checkboxes unchecked")
+
+            # Check for wrongly checked boxes (shouldn't happen due to unchecking above, but kept for safety)
+            for col_idx in range(4, 10):
+                if col_idx != expected_col:
+                    try:
+                        cell = table.Cell(row_idx, col_idx)
+                        if cell.Range.FormFields.Count > 0:
+                            for field in cell.Range.FormFields:
+                                if field.Type == 71 and field.CheckBox.Value:
+                                    logging.warning(f"Unexpected checkbox checked in Row {row_idx}, Col {col_idx} - should be Col {expected_col or 'none'}")
                     except Exception as e:
                         logging.error(f"Error checking checkbox in Row {row_idx}, Col {col_idx}: {e}")
             root.update()
 
-        # Save the modified document with a new name
-        output_form_path = os.path.splitext(form_path)[0] + "_edited.docx"
-        counter = 1
-        while os.path.exists(output_form_path):
-            output_form_path = os.path.splitext(form_path)[0] + f"_edited_{counter}.docx"
-            counter += 1
-
-        logging.debug(f"Saving document as: {output_form_path}")
-        doc.SaveAs(os.path.abspath(output_form_path))
-        logging.info(f"Form filled and saved as {output_form_path}")
+        # Save changes to the original document
+        doc.Save()
+        logging.info(f"Changes saved to original document: {form_path}")
         root.update()
-        return output_form_path
+        return form_path
 
     except Exception as e:
         logging.error(f"An error occurred in fill_form_from_excel: {e}")
