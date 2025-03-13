@@ -1,13 +1,10 @@
-import os
-import shutil
+import os ,shutil ,re ,logging ,webbrowser
 import win32com.client as win32
 import pandas as pd
-import re
 from openpyxl import load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
-import logging
 import xml.etree.ElementTree as ET
 
 # Custom logging handler to output to a Tkinter Text widget
@@ -713,6 +710,29 @@ def gui():
                 else:
                     messagebox.showerror("Error", "Conversion failed. Check logs for details.")
 
+    def show_help_dialog():
+        # Create a custom dialog box
+        help_dialog = tk.Toplevel(root)
+        help_dialog.title("Help")
+        help_dialog.geometry("400x200")
+        help_dialog.transient(root) 
+        help_dialog.grab_set()
+
+        # Text message
+        message = tk.Label(help_dialog, text="For more information and getting the last updated APP visit my GitHub:", wraplength=350, justify="center")
+        message.pack(pady=20)
+
+        # Clickable link
+        link_text = "https://github.com/mhdsedighi/EFOD-Helper" 
+        link = tk.Label(help_dialog, text=link_text, fg="blue", cursor="hand2", underline=True)
+        link.pack(pady=10)
+        link.bind("<Button-1>", lambda e: webbrowser.open(link_text))
+
+        # OK button to close the dialog
+        ok_button = tk.Button(help_dialog, text="OK", command=help_dialog.destroy, width=10)
+        ok_button.pack(pady=20)
+
+    # Buttons
     btn_form_to_excel = tk.Button(button_frame, text="EFOD to Excel", command=form_to_excel, width=20)
     btn_form_to_excel.pack(side=tk.LEFT, padx=10)
     Tooltip(btn_form_to_excel, "Convert an EFOD Word Form to an Excel spreadsheet.")
@@ -728,6 +748,11 @@ def gui():
     btn_excel_on_excel = tk.Button(button_frame, text="Excel on Excel", command=excel_on_excel_conversion, width=20)
     btn_excel_on_excel.pack(side=tk.LEFT, padx=10)
     Tooltip(btn_excel_on_excel, "Fill one Excel file with data from another based on matching Annex Ref.")
+
+    # Add '?' button
+    btn_help = tk.Button(button_frame, text="?", command=show_help_dialog, width=5)
+    btn_help.pack(side=tk.RIGHT, padx=10)
+    Tooltip(btn_help, "Click for help and more information.")
 
     root.mainloop()
 
