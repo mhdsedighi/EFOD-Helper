@@ -346,14 +346,18 @@ def fill_form_from_excel(excel_path, form_path, root):
             'no difference': 4,     # Full form
             'more': 5,              # Short form
             'more exacting': 5,     # Full form
+            'more exacting or exceeds': 5,  # Full form
             'different': 6,         # Short form
             'different in character': 6,  # Full form
+            'difference in character': 6,  # Full form
+            'difference in character/ other means of compliance': 6,  # Full form
             'less': 7,              # Short form
             'less protective or partially': 7,  # Full form
             'significant': 8,       # Short form
             'significant difference': 8,  # Full form
             'not': 9,               # Short form
-            'not applicable': 9     # Full form
+            'not applicable': 9,     # Full form
+            'not defined': 9  # Full form
         }
 
         # Iterate through rows
