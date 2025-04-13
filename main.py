@@ -567,43 +567,72 @@ def excel_on_excel(sample_excel_path, fillable_excel_path, root):
         logging.error(f"Fillable Excel file not found: {fillable_excel_path}")
         return None
 
-    # Read sample Excel data, forcing first column as string
+    # Read sample Excel data
     try:
         sample_df = pd.read_excel(sample_excel_path, dtype={0: str})
-        logging.info("Sample Excel data loaded successfully")
+        logging.info(f"Sample Excel loaded: {len(sample_df)} rows, columns: {list(sample_df.columns)}")
+        logging.debug(f"Sample first column values: {sample_df.iloc[:, 0].tolist()}")
         root.update()
     except Exception as e:
-        logging.error(f"Failed to read sample Excel file: {e}")
+        logging.error(f"Failed to read sample Excel: {e}")
         return None
 
-    # Read fillable Excel data, forcing first column as string
+    # Read fillable Excel data
     try:
         fillable_df = pd.read_excel(fillable_excel_path, dtype={0: str})
-        logging.info("Fillable Excel data loaded successfully")
+        logging.info(f"Fillable Excel loaded: {len(fillable_df)} rows, columns: {list(fillable_df.columns)}")
+        logging.debug(f"Fillable first column values: {fillable_df.iloc[:, 0].tolist()}")
         root.update()
     except Exception as e:
-        logging.error(f"Failed to read fillable Excel file: {e}")
+        logging.error(f"Failed to read fillable Excel: {e}")
         return None
 
-    # Create a dictionary from sample_df for quick lookup by first column, normalizing values
-    sample_dict = {str(row.iloc[0]).strip(): row for index, row in sample_df.iterrows()}
+    # Create sample dictionary
+    try:
+        sample_dict = {str(row.iloc[0]).strip(): row for index, row in sample_df.iterrows()}
+        logging.info(f"Sample dictionary created with {len(sample_dict)} unique keys")
+        logging.debug(f"Sample dictionary keys: {list(sample_dict.keys())}")
+    except Exception as e:
+        logging.error(f"Failed to create sample dictionary: {e}")
+        return None
 
-    # Process fillable_df: Update rows where first column matches
+    # Process fillable_df
+    processed_rows = 0
     for index, row in fillable_df.iterrows():
-        fillable_ref = str(row.iloc[0]).strip()  # Normalize: convert to string and strip whitespace
-        sample_row = sample_dict.get(fillable_ref)
+        try:
+            logging.debug(f"Processing row {index + 2} (index {index})")
+            # Validate first column
+            if pd.isna(row.iloc[0]):
+                logging.warning(f"Row {index + 2}: First column is NaN, skipping update")
+                continue
 
-        # Debug: Log the normalized values being compared
-        logging.debug(
-            f"Row {index + 2}: Fillable first column (normalized) = {repr(fillable_ref)}, Sample first column match (normalized) = {repr(sample_row.iloc[0].strip() if sample_row is not None else None)}")
+            fillable_ref = str(row.iloc[0]).strip()
+            logging.debug(f"Row {index + 2}: fillable_ref = {repr(fillable_ref)}")
 
-        if sample_row is not None:
-            # If there's a match, update the entire row in fillable_df
-            fillable_df.iloc[index] = sample_row
-            logging.info(f"Row {index + 2}: Updated with data from sample Excel for first column = {fillable_ref}")
-        else:
-            logging.debug(f"Row {index + 2}: No match found for first column = {fillable_ref}, leaving row unchanged")
-        root.update()
+            # Check DataFrame state
+            logging.debug(f"Row {index + 2}: fillable_df shape before update: {fillable_df.shape}")
+
+            sample_row = sample_dict.get(fillable_ref)
+            if sample_row is not None:
+                # Log sample row data
+                logging.debug(f"Row {index + 2}: Found match, sample_row = {sample_row.tolist()}")
+                # Update row
+                fillable_df.iloc[index] = sample_row
+                logging.info(f"Row {index + 2}: Updated with data for fillable_ref = {fillable_ref}")
+            else:
+                logging.debug(f"Row {index + 2}: No match found for fillable_ref = {fillable_ref}")
+
+            # Increment counter
+            processed_rows += 1
+            logging.debug(f"Row {index + 2}: fillable_df shape after update: {fillable_df.shape}")
+
+            root.update()
+        except Exception as e:
+            logging.error(f"Error processing row {index + 2}: {e}")
+            logging.debug(f"Row {index + 2}: row data = {row.tolist()}")
+            raise  # Re-raise to stop and inspect
+
+    logging.info(f"Processed {processed_rows} rows out of {len(fillable_df)}")
 
     # Generate output filename
     output_dir = os.path.dirname(fillable_excel_path)
@@ -611,42 +640,32 @@ def excel_on_excel(sample_excel_path, fillable_excel_path, root):
     output_excel_path = os.path.join(output_dir, base_name)
     counter = 1
     while os.path.exists(output_excel_path):
-        output_excel_path = os.path.join(output_dir,
-                                         f"{os.path.splitext(os.path.basename(fillable_excel_path))[0]}_filled_{counter}.xlsx")
+        output_excel_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(fillable_excel_path))[0]}_filled_{counter}.xlsx")
         counter += 1
 
     # Export to Excel
     try:
         fillable_df.to_excel(output_excel_path, index=False, engine='openpyxl')
+        logging.debug(f"Excel saved to {output_excel_path}")
 
-        # Load the workbook to modify it
+        # Load workbook to add table
         wb = load_workbook(output_excel_path)
         ws = wb.active
-
-        # Define the table range dynamically based on column count
-        num_rows = len(fillable_df) + 1  # +1 for header
+        num_rows = len(fillable_df) + 1
         num_cols = len(fillable_df.columns)
         table_range = f"A1:{chr(64 + num_cols)}{num_rows}"
-
-        # Create an Excel table
         tab = Table(displayName="FormDataTable", ref=table_range)
         style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
         tab.tableStyleInfo = style
         ws.add_table(tab)
-
-        # Freeze the first row (headers)
-        ws.freeze_panes = ws['A2']  # Freezes row 1
-
-        # Save the modified workbook
+        ws.freeze_panes = ws['A2']
         wb.save(output_excel_path)
-        logging.info(
-            f"Excel data processed and saved to {output_excel_path} (Processed {len(fillable_df)} rows) with table and frozen headers")
+        logging.info(f"Excel saved: {output_excel_path} ({len(fillable_df)} rows)")
         root.update()
         return output_excel_path
-
     except Exception as e:
-        logging.error(f"An error occurred in excel_on_excel: {e}")
+        logging.error(f"Failed to save Excel: {e}")
         return None
 
 
