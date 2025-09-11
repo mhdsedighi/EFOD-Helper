@@ -280,20 +280,20 @@ def fill_form_from_excel(excel_path, form_path, root):
         logging.error(f"Failed to read Excel file: {e}")
         return None
 
-    # Duplicate the form file
+    # Create backup of the form file
     try:
         output_dir = os.path.dirname(form_path)
         base_name = os.path.splitext(os.path.basename(form_path))[0]
-        output_form_path = os.path.join(output_dir, f"{base_name}_edited.docx")
+        backup_path = os.path.join(output_dir, f"{base_name}_beforefilling.docx")
         counter = 1
-        while os.path.exists(output_form_path):
-            output_form_path = os.path.join(output_dir, f"{base_name}_edited_{counter}.docx")
+        while os.path.exists(backup_path):
+            backup_path = os.path.join(output_dir, f"{base_name}_beforefilling_{counter}.docx")
             counter += 1
-        shutil.copy2(form_path, output_form_path)  # Copy the file preserving metadata
-        logging.info(f"Created duplicate form: {output_form_path}")
+        shutil.copy2(form_path, backup_path)  # Copy the file preserving metadata
+        logging.info(f"Created backup: {backup_path}")
         root.update()
     except Exception as e:
-        logging.error(f"Failed to duplicate form file: {e}")
+        logging.error(f"Failed to create backup: {e}")
         return None
 
     # Initialize Word application
@@ -308,10 +308,10 @@ def fill_form_from_excel(excel_path, form_path, root):
         return None
 
     try:
-        # Open the duplicated document
-        logging.debug(f"Attempting to open document: {output_form_path}")
-        doc = word.Documents.Open(os.path.abspath(output_form_path))
-        logging.info(f"Opened document: {output_form_path}")
+        # Open the original document
+        logging.debug(f"Attempting to open document: {form_path}")
+        doc = word.Documents.Open(os.path.abspath(form_path))
+        logging.info(f"Opened document: {form_path}")
         root.update()
 
         # Get the first table
@@ -436,11 +436,11 @@ def fill_form_from_excel(excel_path, form_path, root):
                         logging.error(f"Error checking checkbox in Row {row_idx}, Col {col_idx}: {e}")
             root.update()
 
-        # Save changes to the duplicated document
+        # Save changes to the original document
         doc.Save()
-        logging.info(f"Changes saved to duplicated document: {output_form_path}")
+        logging.info(f"Changes saved to original document: {form_path}")
         root.update()
-        return output_form_path
+        return form_path
 
     except Exception as e:
         logging.error(f"An error occurred in fill_form_from_excel: {e}")
@@ -675,7 +675,7 @@ def excel_on_excel(sample_excel_path, fillable_excel_path, root):
 
 def gui():
     root = tk.Tk()
-    root.title("EFOD Converter")
+    root.title("EFOD Helper")
     root.geometry("800x400")  # Initial size
 
     # Frame for buttons
