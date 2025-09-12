@@ -294,6 +294,44 @@ def fill_form_from_excel(excel_path, form_path, root):
         logging.error(f"Failed to read Excel file: {e}")
         return None
 
+    # Validate "Difference" column values
+    checkbox_text_map = {
+        'no': 4,  # Short form
+        'no difference': 4,  # Full form
+        'more': 5,  # Short form
+        'more exacting': 5,  # Full form
+        'more exacting or exceeds': 5,  # Full form
+        'different': 6,  # Short form
+        'different in character': 6,  # Full form
+        'difference in character': 6,  # Full form
+        'difference in character/ other means of compliance': 6,  # Full form
+        'less': 7,  # Short form
+        'less protective or partially': 7,  # Full form
+        'significant': 8,  # Short form
+        'significant difference': 8,  # Full form
+        'not': 9,  # Short form
+        'not applicable': 9,  # Full form
+        'not defined': 9  # Full form
+    }
+    valid_values = list(checkbox_text_map.keys()) + ['error-multi checkbox',
+                                                     '']  # Allow empty string and error-multi checkbox
+    invalid_rows = []
+    for idx, value in enumerate(df["Difference"]):
+        # Convert value to string and normalize for comparison
+        diff_value = str(value).strip().lower() if pd.notna(value) else ''
+        if diff_value not in valid_values:
+            invalid_rows.append((idx + 2, value))  # Excel row number (index + 2 due to header)
+
+    if invalid_rows:
+        error_message = "Invalid values found in the 'Difference' column. The following rows contain unrecognized values:\n\n"
+        for row_num, value in invalid_rows:
+            error_message += f"Row {row_num}: '{value}'\n"
+        error_message += "\nExpected values are: " + ", ".join(
+            f"'{v}'" for v in checkbox_text_map.keys()) + ", 'error-multi checkbox', or empty."
+        logging.error(error_message)
+        messagebox.showerror("Invalid Difference Values", error_message)
+        return None
+
     # Create backup of the form file
     try:
         output_dir = os.path.dirname(form_path)
@@ -354,29 +392,8 @@ def fill_form_from_excel(excel_path, form_path, root):
         logging.info(f"Row count matches: {excel_rows} rows in both Excel and Word table")
         root.update()
 
-        # Checkbox mapping with both short and full forms (case-insensitive)
-        checkbox_text_map = {
-            'no': 4,                # Short form
-            'no difference': 4,     # Full form
-            'more': 5,              # Short form
-            'more exacting': 5,     # Full form
-            'more exacting or exceeds': 5,  # Full form
-            'different': 6,         # Short form
-            'different in character': 6,  # Full form
-            'difference in character': 6,  # Full form
-            'difference in character/ other means of compliance': 6,  # Full form
-            'less': 7,              # Short form
-            'less protective or partially': 7,  # Full form
-            'significant': 8,       # Short form
-            'significant difference': 8,  # Full form
-            'not': 9,               # Short form
-            'not applicable': 9,     # Full form
-            'not defined': 9  # Full form
-        }
-
         # Iterate through rows
         max_rows = table.Rows.Count
-        # max_rows = min(30, table.Rows.Count)  # Limit to first 30 rows; co
         logging.info(f"Processing {max_rows} rows")
         root.update()
         for row_idx in range(1, max_rows + 1):
@@ -431,7 +448,7 @@ def fill_form_from_excel(excel_path, form_path, root):
                     except Exception as e:
                         logging.error(f"Error setting checkbox in Row {row_idx}, Col {expected_col}: {e}")
                 else:
-                    # Undefined value: all checkboxes remain unchecked, log in "red" (as error for visibility)
+                    # This should not happen due to prior validation, but kept for safety
                     logging.error(f"Unrecognized Difference value '{diff_value}' in Row {row_idx} - all checkboxes unchecked")
             else:
                 # NaN or "error-multi checkbox": all checkboxes remain unchecked
