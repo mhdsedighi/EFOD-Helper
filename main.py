@@ -22,11 +22,25 @@ class TextHandler(logging.Handler):
         self.text_widget.see(tk.END)  # Auto-scroll to the bottom
         self.root.update()  # Force GUI update to show message immediately
 
+# Custom formatter to exclude level name except for ERROR
+class CustomFormatter(logging.Formatter):
+    def __init__(self):
+        super().__init__(datefmt='%Y-%m-%d %H:%M:%S')
+
+    def format(self, record):
+        timestamp = self.formatTime(record, self.datefmt)
+        if record.levelno == logging.ERROR:
+            # Include level name for ERROR
+            return f"{timestamp} - {record.levelname} - {record.msg}"
+        else:
+            # Exclude level name for other levels
+            return f"{timestamp} - {record.msg}"
+
 def setup_logging(text_widget, root):
     # Set up logging to output to the text widget
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
     handler = TextHandler(text_widget, root)
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    handler.setFormatter(CustomFormatter())
     logging.getLogger().handlers = []  # Clear default handlers
     logging.getLogger().addHandler(handler)
 
@@ -738,7 +752,7 @@ def gui():
         help_dialog = tk.Toplevel(root)
         help_dialog.title("Help")
         help_dialog.geometry("400x200")
-        help_dialog.transient(root) 
+        help_dialog.transient(root)
         help_dialog.grab_set()
 
         # Text message
@@ -746,7 +760,7 @@ def gui():
         message.pack(pady=20)
 
         # Clickable link
-        link_text = "https://github.com/mhdsedighi/EFOD-Helper" 
+        link_text = "https://github.com/mhdsedighi/EFOD-Helper"
         link = tk.Label(help_dialog, text=link_text, fg="blue", cursor="hand2", underline=True)
         link.pack(pady=10)
         link.bind("<Button-1>", lambda e: webbrowser.open(link_text))
