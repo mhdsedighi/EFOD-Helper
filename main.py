@@ -694,6 +694,7 @@ def excel_on_excel(sample_excel_path, fillable_excel_path, root):
                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
         tab.tableStyleInfo = style
         ws.add_table(tab)
+        ws.add_table(tab)
         ws.freeze_panes = ws['A2']
         wb.save(output_excel_path)
         logging.info(f"Excel saved: {output_excel_path} ({len(fillable_df)} rows)")
@@ -708,13 +709,14 @@ def gui():
     root = tk.Tk()
     root.title("EFOD Helper")
     root.geometry("800x400")  # Initial size
+    root.configure(bg="#1C2526")  # Dark background
 
     # Frame for buttons
-    button_frame = tk.Frame(root)
+    button_frame = tk.Frame(root, bg="#1C2526")
     button_frame.pack(pady=10, fill=tk.X)  # Fill horizontally
 
     # Log display area (dynamic width)
-    log_text = scrolledtext.ScrolledText(root, height=20, state='disabled')
+    log_text = scrolledtext.ScrolledText(root, height=20, state='disabled',bg="#2E2E2E", fg="#E0E0E0",insertbackground="#E0E0E0", font=("Arial", 10))
     log_text.pack(pady=10, fill=tk.BOTH, expand=True)  # Fill both directions and expand
 
     # Set up logging to the text widget
@@ -726,9 +728,9 @@ def gui():
             output_dir = os.path.dirname(form_path)
             output_file = export_table_to_excel(form_path, output_dir, root)
             if output_file:
-                messagebox.showinfo("Success", f"Conversion completed. Output saved as: {output_file}")
+                messagebox.showinfo("Success", f"Conversion completed. Output saved as: {output_file}",parent=root)
             else:
-                messagebox.showerror("Error", "Conversion failed. Check logs for details.")
+                messagebox.showerror("Error", "Conversion failed. Check logs for details.", parent=root)
 
     def excel_to_form():
         excel_path = filedialog.askopenfilename(title="Select Excel File", filetypes=[("Excel files", "*.xlsx")])
@@ -737,9 +739,9 @@ def gui():
             if form_path:
                 output_file = fill_form_from_excel(excel_path, form_path, root)
                 if output_file:
-                    messagebox.showinfo("Success", f"Form filled and saved as: {output_file}")
+                    messagebox.showinfo("Success", f"Form filled and saved as: {output_file}", parent=root)
                 else:
-                    messagebox.showerror("Error", "Conversion failed. Check logs for details.")
+                    messagebox.showerror("Error", "Conversion failed. Check logs for details.", parent=root)
 
     def xml_to_excel_conversion():
         xml_path = filedialog.askopenfilename(title="Select XML File of a country, Exported from SAP Crystal Reports", filetypes=[("XML files", "*.xml")])
@@ -747,9 +749,9 @@ def gui():
             output_dir = os.path.dirname(xml_path)
             output_file = xml_to_excel(xml_path, output_dir, root)
             if output_file:
-                messagebox.showinfo("Success", f"Conversion completed. Output saved as: {output_file}")
+                messagebox.showinfo("Success", f"Conversion completed. Output saved as: {output_file}", parent=root)
             else:
-                messagebox.showerror("Error", "Conversion failed. Check logs for details.")
+                messagebox.showerror("Error", "Conversion failed. Check logs for details.", parent=root)
 
     def excel_on_excel_conversion():
         sample_excel_path = filedialog.askopenfilename(title="Select Sample Excel File (to read from)",
@@ -760,9 +762,9 @@ def gui():
             if fillable_excel_path:
                 output_file = excel_on_excel(sample_excel_path, fillable_excel_path, root)
                 if output_file:
-                    messagebox.showinfo("Success", f"Excel filled and saved as: {output_file}")
+                    messagebox.showinfo("Success", f"Excel filled and saved as: {output_file}", parent=root)
                 else:
-                    messagebox.showerror("Error", "Conversion failed. Check logs for details.")
+                    messagebox.showerror("Error", "Conversion failed. Check logs for details.", parent=root)
 
     def show_help_dialog():
         # Create a custom dialog box
@@ -771,42 +773,69 @@ def gui():
         help_dialog.geometry("400x200")
         help_dialog.transient(root)
         help_dialog.grab_set()
+        help_dialog.configure(bg="#1C2526")
 
         # Text message
-        message = tk.Label(help_dialog, text="For more information and getting the last updated APP visit my GitHub:", wraplength=350, justify="center")
+        message = tk.Label(help_dialog, text="For more information and getting the last updated APP visit my GitHub:",
+                           wraplength=350, justify="center", bg="#1C2526", fg="#E0E0E0", font=("Arial", 10))
         message.pack(pady=20)
 
         # Clickable link
         link_text = "https://github.com/mhdsedighi/EFOD-Helper"
-        link = tk.Label(help_dialog, text=link_text, fg="blue", cursor="hand2", underline=True)
+        link = tk.Label(help_dialog, text=link_text, fg="#4FC3F7", cursor="hand2", font=("Arial", 10, "underline"),bg="#1C2526")
         link.pack(pady=10)
         link.bind("<Button-1>", lambda e: webbrowser.open(link_text))
 
-        # OK button to close the dialog
-        ok_button = tk.Button(help_dialog, text="OK", command=help_dialog.destroy, width=10)
+        # OK button
+        ok_button = tk.Button(help_dialog, text="OK", command=help_dialog.destroy, width=10,bg="#4CAF50", fg="#E0E0E0", activebackground="#66BB6A",font=("Arial", 10), bd=0)
         ok_button.pack(pady=20)
 
+    # Configure button style
+    button_style = {
+        "bg": "#37474F",           # Dark gray button background
+        "fg": "#E0E0E0",           # Light text
+        "activebackground": "#546E7A",  # Slightly lighter on hover
+        "activeforeground": "#E0E0E0",
+        "font": ("Arial", 10),
+        "bd": 0,                   # Borderless for modern look
+        "relief": "flat",
+        "padx": 10,
+        "pady": 5
+    }
+
     # Buttons
-    btn_form_to_excel = tk.Button(button_frame, text="EFOD to Excel", command=form_to_excel, width=20)
+    btn_form_to_excel = tk.Button(button_frame, text="EFOD → Excel", command=form_to_excel, width=20, **button_style)
     btn_form_to_excel.pack(side=tk.LEFT, padx=10)
     Tooltip(btn_form_to_excel, "Convert an EFOD Word Form to an Excel spreadsheet.")
 
-    btn_excel_to_form = tk.Button(button_frame, text="Excel to EFOD", command=excel_to_form, width=20)
+    btn_excel_to_form = tk.Button(button_frame, text="Excel → EFOD", command=excel_to_form, width=20, **button_style)
     btn_excel_to_form.pack(side=tk.LEFT, padx=10)
     Tooltip(btn_excel_to_form, "Fill an EFOD Word Form with the data from the Excel file.")
 
-    btn_xml_to_excel = tk.Button(button_frame, text="SAP Crystal Reports to Excel", command=xml_to_excel_conversion, width=20)
+    btn_xml_to_excel = tk.Button(button_frame, text="SAP Crystal Reports → Excel", command=xml_to_excel_conversion, width=20, **button_style)
     btn_xml_to_excel.pack(side=tk.LEFT, padx=10)
     Tooltip(btn_xml_to_excel, "Convert a SAP Crystal Reports XML Export (for a country) to an Excel spreadsheet.")
 
-    btn_excel_on_excel = tk.Button(button_frame, text="Excel on Excel", command=excel_on_excel_conversion, width=20)
+    btn_excel_on_excel = tk.Button(button_frame, text="Excel → Excel", command=excel_on_excel_conversion, width=20, **button_style)
     btn_excel_on_excel.pack(side=tk.LEFT, padx=10)
     Tooltip(btn_excel_on_excel, "Fill one Excel file with data from another based on matching Annex Ref.")
 
-    # Add '?' button
-    btn_help = tk.Button(button_frame, text="?", command=show_help_dialog, width=5)
+    # Help button
+    btn_help = tk.Button(button_frame, text="?", command=show_help_dialog, width=5,bg="#0288D1", fg="#E0E0E0", activebackground="#03A9F4",font=("Arial", 10), bd=0, relief="flat")
     btn_help.pack(side=tk.RIGHT, padx=10)
     Tooltip(btn_help, "Click for help and more information.")
+
+    # Update Tooltip class to match theme
+    def update_tooltip_style():
+        Tooltip.show_tooltip = lambda self, event: (
+            setattr(self, 'tooltip_window', tw := tk.Toplevel(self.widget)),
+            tw.wm_overrideredirect(True),
+            tw.wm_geometry(f"+{self.widget.winfo_rootx() + 25}+{self.widget.winfo_rooty() + 25}"),
+            tk.Label(tw, text=self.text, background="#37474F", foreground="#E0E0E0",
+                     font=("Arial", 9), relief="solid", borderwidth=1).pack()
+        )
+
+    update_tooltip_style()
 
     root.mainloop()
 
