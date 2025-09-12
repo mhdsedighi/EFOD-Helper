@@ -752,7 +752,7 @@ def gui():
                 messagebox.showerror("Error", "Conversion failed. Check logs for details.")
 
     def excel_on_excel_conversion():
-        sample_excel_path = filedialog.askopenfilename(title="Select Sample Excel File",
+        sample_excel_path = filedialog.askopenfilename(title="Select Sample Excel File (to read from)",
                                                        filetypes=[("Excel files", "*.xlsx")])
         if sample_excel_path:
             fillable_excel_path = filedialog.askopenfilename(title="Select Fillable Excel File",
