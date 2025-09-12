@@ -776,7 +776,7 @@ def gui():
         help_dialog.configure(bg="#1C2526")
 
         # Text message
-        message = tk.Label(help_dialog, text="For more information and getting the last updated APP visit my GitHub:",
+        message = tk.Label(help_dialog, text="For more information and getting the latest update visit my GitHub:",
                            wraplength=350, justify="center", bg="#1C2526", fg="#E0E0E0", font=("Arial", 10))
         message.pack(pady=20)
 
@@ -806,24 +806,24 @@ def gui():
     # Buttons
     btn_form_to_excel = tk.Button(button_frame, text="EFOD → Excel", command=form_to_excel, width=20, **button_style)
     btn_form_to_excel.pack(side=tk.LEFT, padx=10)
-    Tooltip(btn_form_to_excel, "Convert an EFOD Word Form to an Excel spreadsheet.")
+    Tooltip(btn_form_to_excel, "Convert an EFOD Word form to an Excel file")
 
     btn_excel_to_form = tk.Button(button_frame, text="Excel → EFOD", command=excel_to_form, width=20, **button_style)
     btn_excel_to_form.pack(side=tk.LEFT, padx=10)
-    Tooltip(btn_excel_to_form, "Fill an EFOD Word Form with the data from the Excel file.")
+    Tooltip(btn_excel_to_form, "Fill an EFOD Word form with the data from an Excel file")
 
     btn_xml_to_excel = tk.Button(button_frame, text="SAP Crystal Reports → Excel", command=xml_to_excel_conversion, width=20, **button_style)
     btn_xml_to_excel.pack(side=tk.LEFT, padx=10)
-    Tooltip(btn_xml_to_excel, "Convert a SAP Crystal Reports XML Export (for a country) to an Excel spreadsheet.")
+    Tooltip(btn_xml_to_excel, "Convert a SAP Crystal Reports XML export (for a country) to an Excel file")
 
     btn_excel_on_excel = tk.Button(button_frame, text="Excel → Excel", command=excel_on_excel_conversion, width=20, **button_style)
     btn_excel_on_excel.pack(side=tk.LEFT, padx=10)
-    Tooltip(btn_excel_on_excel, "Fill one Excel file with data from another based on matching Annex Ref.")
+    Tooltip(btn_excel_on_excel, "Fill one Excel file with data from another Excel file based on matching annex ref. number")
 
     # Help button
     btn_help = tk.Button(button_frame, text="?", command=show_help_dialog, width=5,bg="#0288D1", fg="#E0E0E0", activebackground="#03A9F4",font=("Arial", 10), bd=0, relief="flat")
-    btn_help.pack(side=tk.RIGHT, padx=10)
-    Tooltip(btn_help, "Click for help and more information.")
+    btn_help.pack(side=tk.LEFT, padx=10)
+    Tooltip(btn_help, "More info")
 
     # Update Tooltip class to match theme
     def update_tooltip_style():
