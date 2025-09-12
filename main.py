@@ -708,7 +708,7 @@ def excel_on_excel(sample_excel_path, fillable_excel_path, root):
 def gui():
     root = tk.Tk()
     root.title("EFOD Helper")
-    root.geometry("800x400")  # Initial size
+    root.state('zoomed')  # Maximize window on startup
     root.configure(bg="#1C2526")  # Dark background
 
     # Frame for buttons
