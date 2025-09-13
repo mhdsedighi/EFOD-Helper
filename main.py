@@ -152,16 +152,23 @@ def export_table_to_excel(file_path, output_dir, root):
                 cell = table.Cell(row_idx, col_idx)
                 # Get raw text
                 raw_text = cell.Range.Text
-                # Split at first control character to get visible text
+                # Include tabs, newlines, and carriage returns, exclude other control characters
                 visible_text = ''
                 for char in raw_text:
-                    if ord(char) < 32 and char != '\n':
+                    if ord(char) < 32 and char not in ['\n', '\t', '\r']:
                         break
                     visible_text += char
-                visible_text = visible_text.strip()
-                # If in first column, extract numeric part from visible text
+                # Preserve all spaces, tabs, newlines, and carriage returns for columns 2, 3, 10, 11
+                if col_idx in [2, 3, 10, 11]:
+                    cell_text = visible_text  # No stripping to keep spaces, tabs, newlines, and carriage returns
+                else:
+                    cell_text = visible_text.strip()  # Strip for column 1 and others
+                # Log raw and processed text for columns 2, 3, 10, 11
+                if col_idx in [2, 3, 10, 11]:
+                    logging.debug(f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, final: {repr(cell_text)}")
+                # If in first column, extract numeric part
                 if col_idx == 1:
-                    numeric_match = re.match(r'^\d+(?:\.\d+)?(?![.\d])', visible_text)
+                    numeric_match = re.match(r'^\d+(?:\.\d+)?(?![.\d])', cell_text)
                     if numeric_match:
                         cell_text = numeric_match.group(0)
                         logging.debug(
@@ -170,9 +177,6 @@ def export_table_to_excel(file_path, output_dir, root):
                         cell_text = visible_text
                         logging.debug(
                             f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, cleaned: {cell_text} (no numeric match)")
-                else:
-                    cell_text = visible_text
-
                 # Handle checkbox columns (4-9)
                 if col_idx in checkbox_columns:
                     for field in cell.Range.FormFields:
@@ -180,7 +184,7 @@ def export_table_to_excel(file_path, output_dir, root):
                             if field.CheckBox.Value:
                                 checked_indices.append(str(col_idx))
                             # Debug: Print raw cell content if problematic
-                            if any(ord(c) < 32 and c != '\n' for c in raw_text):
+                            if any(ord(c) < 32 and c not in ['\n', '\t', '\r'] for c in raw_text):
                                 logging.debug(f"Row {row_idx}, Col {col_idx} raw content: {repr(raw_text)}")
                 # Add specific columns to row_data in desired order
                 elif col_idx in [1, 2, 3, 10, 11]:  # Only these go to Excel
@@ -406,9 +410,10 @@ def fill_form_from_excel(excel_path, form_path, root):
                     if cell.Range.FormFields.Count > 0:
                         field = cell.Range.FormFields(1)
                         if field.Type == 70:  # wdFieldFormTextInput
-                            # Preserve original case, handle NaN
-                            field.Result = str(value) if pd.notna(value) else ""
-                            logging.debug(f"Set text field in Row {row_idx}, Col {col_idx}: {value}")
+                            # Preserve original case, spaces, and newlines; handle NaN
+                            cell_text = str(value) if pd.notna(value) else ""
+                            field.Result = cell_text
+                            logging.debug(f"Set text field in Row {row_idx}, Col {col_idx}: {repr(cell_text)}")
                         else:
                             logging.warning(f"Expected text field, found type {field.Type} in Row {row_idx}, Col {col_idx}")
                     else:
