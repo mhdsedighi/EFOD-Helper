@@ -656,9 +656,13 @@ def excel_on_excel(sample_excel_path, fillable_excel_path, root):
             if sample_row is not None:
                 # Log sample row data
                 logging.debug(f"Row {index + 2}: Found match, sample_row = {sample_row.tolist()}")
-                # Update row
-                fillable_df.iloc[index] = sample_row
-                logging.info(f"Row {index + 2}: Updated with data for fillable_ref = {fillable_ref}")
+                # Update specific columns, preserving column 2 ("Standard") from fillable_df
+                fillable_df.iloc[index, 0] = sample_row.iloc[0]  # Annex Ref.
+                fillable_df.iloc[index, 2] = sample_row.iloc[2]  # Difference
+                fillable_df.iloc[index, 3] = sample_row.iloc[3]  # State Ref.
+                fillable_df.iloc[index, 4] = sample_row.iloc[4]  # Details
+                fillable_df.iloc[index, 5] = sample_row.iloc[5]  # Remark
+                logging.info(f"Row {index + 2}: Updated columns 1,3,4,5,6 for fillable_ref = {fillable_ref}, preserved Standard = {repr(fillable_df.iloc[index, 1])}")
             else:
                 logging.debug(f"Row {index + 2}: No match found for fillable_ref = {fillable_ref}")
 
