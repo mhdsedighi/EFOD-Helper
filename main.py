@@ -699,7 +699,6 @@ def excel_on_excel(sample_excel_path, fillable_excel_path, root):
                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
         tab.tableStyleInfo = style
         ws.add_table(tab)
-        ws.add_table(tab)
         ws.freeze_panes = ws['A2']
         wb.save(output_excel_path)
         logging.info(f"Excel saved: {output_excel_path} ({len(fillable_df)} rows)")
