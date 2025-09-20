@@ -91,18 +91,14 @@ def export_table_to_excel(file_path, output_dir, root):
         logging.info(f"Opened document: {file_path}")
         root.update()
 
-        # Define Word constants
+        # Handle protection (Type 2 - Comments, no password)
         WD_NO_PROTECTION = -1
+        WD_COMMENTS = 2
 
-        # Handle protection
-        protection_password = None  # Set to your password if known
-        if doc.ProtectionType != WD_NO_PROTECTION:
-            logging.info("Document is protected. Attempting to unprotect...")
+        if doc.ProtectionType == WD_COMMENTS:
+            logging.info("Document is protected (Comments mode). Unprotecting...")
             try:
-                if protection_password:
-                    doc.Unprotect(protection_password)
-                else:
-                    doc.Unprotect()
+                doc.Unprotect()  # No password needed
                 logging.info("Document unprotected successfully.")
                 root.update()
             except Exception as e:
@@ -279,6 +275,8 @@ def export_table_to_excel(file_path, output_dir, root):
             pass
 
 def fill_form_from_excel(excel_path, form_path, root):
+    WD_NO_PROTECTION = -1
+    WD_COMMENTS = 2
     if not os.path.exists(excel_path):
         logging.error(f"Excel file not found: {excel_path}")
         return None
@@ -577,6 +575,15 @@ def fill_form_from_excel(excel_path, form_path, root):
         # Save changes to the original document
         doc.Save()
         logging.info(f"Changes saved to original document: {form_path}")
+
+        # Re-apply original protection (Type 2 - Comments, no password)
+        if doc.ProtectionType == WD_NO_PROTECTION:  # Check if we unprotected it
+            try:
+                doc.Protect(Type=WD_COMMENTS, NoReset=False)
+                logging.info("Document re-protected (Comments mode)")
+            except Exception as e:
+                logging.warning(f"Failed to re-apply protection: {e}")
+
         root.update()
         return form_path
 
