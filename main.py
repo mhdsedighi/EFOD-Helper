@@ -403,17 +403,42 @@ def fill_form_from_excel(excel_path, form_path, root):
         for row_idx in range(1, max_rows + 1):
             row_data = df.iloc[row_idx - 1]  # 0-based index for pandas
 
-            # Fill text fields (columns 3, 10, 11) without changing case
+            # Fill text fields (columns 3, 10, 11)
             for col_idx, value in [(3, row_data["State Ref."]), (10, row_data["Details"]), (11, row_data["Remark"])]:
                 try:
                     cell = table.Cell(row_idx, col_idx)
                     if cell.Range.FormFields.Count > 0:
                         field = cell.Range.FormFields(1)
                         if field.Type == 70:  # wdFieldFormTextInput
-                            # Preserve original case, spaces, and newlines; handle NaN
-                            cell_text = str(value) if pd.notna(value) else ""
+                            # Handle NaN values
+                            if pd.isna(value):
+                                cell_text = ""
+                            else:
+                                # Convert to string and clean up whitespace
+                                cell_text = str(value)
+
+                                # Remove leading/trailing whitespace (including Unicode spaces)
+                                cell_text = cell_text.strip()
+
+                                # Remove internal Unicode whitespace characters that are effectively empty
+                                # Keep regular spaces, tabs, and newlines, but remove exotic Unicode spaces
+                                if not cell_text or len(cell_text) <= 3:
+                                    # For very short strings, check if it's just whitespace
+                                    cleaned = re.sub(r'[\u2000-\u200B\u2028\u2029\u202F\u205F\u3000]+', '', cell_text)
+                                    if not cleaned:
+                                        cell_text = ""  # Treat as empty if only Unicode whitespace
+                                    else:
+                                        cell_text = cleaned  # Keep the cleaned content
+                                else:
+                                    # For longer content, just strip and keep as-is
+                                    pass
+
+                            # Set the field
                             field.Result = cell_text
-                            logging.debug(f"Set text field in Row {row_idx}, Col {col_idx}: {repr(cell_text)}")
+
+                            if cell_text:logging.debug(f"Set text field in Row {row_idx}, Col {col_idx}: '{cell_text}'")
+                            else:
+                                logging.debug(f"Cleared text field in Row {row_idx}, Col {col_idx} (empty)")
                         else:
                             logging.warning(f"Expected text field, found type {field.Type} in Row {row_idx}, Col {col_idx}")
                     else:
