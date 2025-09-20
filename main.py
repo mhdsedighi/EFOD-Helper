@@ -426,50 +426,127 @@ def fill_form_from_excel(excel_path, form_path, root):
             diff_value = row_data["Difference"]
             expected_col = None
 
-            # First, uncheck all checkboxes in columns 4-9
-            for col_idx in range(4, 10):
+            # First, determine the current checkbox state - detect ALL checked boxes
+            current_checked_cols = []
+            for col_idx in range(4, 10):  # Columns 4-9
                 try:
                     cell = table.Cell(row_idx, col_idx)
                     if cell.Range.FormFields.Count > 0:
                         for field in cell.Range.FormFields:
                             if field.Type == 71:  # wdFieldFormCheckBox
-                                field.CheckBox.Value = False
-                                logging.debug(f"Unchecked box in Row {row_idx}, Col {col_idx}")
+                                if field.CheckBox.Value:
+                                    current_checked_cols.append(col_idx)
+                                    # logging.debug(f"Row {row_idx}: Found checked checkbox in Col {col_idx}")
                 except Exception as e:
-                    logging.error(f"Error unchecking checkbox in Row {row_idx}, Col {col_idx}: {e}")
+                    logging.error(f"Error reading checkbox in Row {row_idx}, Col {col_idx}: {e}")
 
-            # Set the correct checkbox or handle undefined value
+            # Determine what the checkbox state should be
             if pd.notna(diff_value) and diff_value != "error-multi checkbox":
-                diff_key = str(diff_value).strip().lower()  # Normalize for comparison
+                diff_key = str(diff_value).strip().lower()
                 if diff_key in checkbox_text_map:
                     expected_col = checkbox_text_map[diff_key]
+                else:
+                    # Unrecognized value - should all be unchecked
+                    expected_col = None
+            else:
+                # NaN or "error-multi checkbox" - should all be unchecked
+                expected_col = None
+
+            # # Log current and expected state
+            # if len(current_checked_cols) > 1:
+            #     logging.warning(f"Row {row_idx}: Multiple checkboxes detected! Currently checked: {current_checked_cols}, Expected: {expected_col or 'none'}")
+            # elif len(current_checked_cols) == 1:
+            #     logging.debug(f"Row {row_idx}: Single checkbox currently checked in Col {current_checked_cols[0]}, Expected: {expected_col or 'none'}")
+            # else:
+            #     logging.debug(f"Row {row_idx}: No checkboxes currently checked, Expected: {expected_col or 'none'}")
+
+            # Determine if any changes are needed
+            needs_change = False
+            if expected_col is None:
+                # Expected: all unchecked
+                needs_change = len(current_checked_cols) > 0
+            else:
+                # Expected: specific one checked
+                needs_change = (len(current_checked_cols) != 1) or (current_checked_cols[0] != expected_col)
+
+            if not needs_change:
+                logging.debug(f"Row {row_idx}: No Checkbox changes needed")
+            else:
+                # logging.debug(f"Row {row_idx}: Checkbox state change needed - current: {current_checked_cols}, expected: {expected_col or 'none'}")
+
+                # Whenever change is needed, first Uncheck ALL currently checked boxes
+                for col_idx in current_checked_cols:
+                    try:
+                        cell = table.Cell(row_idx, col_idx)
+                        if cell.Range.FormFields.Count > 0:
+                            for field in cell.Range.FormFields:
+                                if field.Type == 71:  # wdFieldFormCheckBox
+                                    field.CheckBox.Value = False
+                                    logging.debug(f"Row {row_idx}: Unchecked box in Col {col_idx}")
+                    except Exception as e:
+                        logging.error(f"Row {row_idx}: Error unchecking checkbox in Col {col_idx}: {e}")
+
+                # Check the expected one (if any)
+                if expected_col:
                     try:
                         cell = table.Cell(row_idx, expected_col)
                         if cell.Range.FormFields.Count > 0:
                             for field in cell.Range.FormFields:
                                 if field.Type == 71:  # wdFieldFormCheckBox
                                     field.CheckBox.Value = True
-                                    logging.debug(f"Checked box in Row {row_idx}, Col {expected_col}: {diff_value}")
+                                    logging.debug(f"Row {row_idx}: Checked box in Col {expected_col}: {diff_value}")
                     except Exception as e:
-                        logging.error(f"Error setting checkbox in Row {row_idx}, Col {expected_col}: {e}")
-                else:
-                    # This should not happen due to prior validation, but kept for safety
-                    logging.error(f"Unrecognized Difference value '{diff_value}' in Row {row_idx} - all checkboxes unchecked")
-            else:
-                # NaN or "error-multi checkbox": all checkboxes remain unchecked
-                logging.debug(f"No valid Difference value '{diff_value}' in Row {row_idx} - all checkboxes unchecked")
+                        logging.error(f"Row {row_idx}: Error setting checkbox in Col {expected_col}: {e}")
 
-            # Check for wrongly checked boxes (safety net)
-            for col_idx in range(4, 10):
-                if col_idx != expected_col:
+                # Comprehensive verification - check ALL checkboxes in columns 4-9
+                # logging.debug(f"Row {row_idx}: Verifying final checkbox state...")
+                final_checked_cols = []
+                for col_idx in range(4, 10):
                     try:
                         cell = table.Cell(row_idx, col_idx)
                         if cell.Range.FormFields.Count > 0:
                             for field in cell.Range.FormFields:
-                                if field.Type == 71 and field.CheckBox.Value:
-                                    logging.warning(f"Unexpected checkbox checked in Row {row_idx}, Col {col_idx} - should be Col {expected_col or 'none'}")
+                                if field.Type == 71:  # wdFieldFormCheckBox
+                                    if field.CheckBox.Value:
+                                        final_checked_cols.append(col_idx)
+                                        if col_idx != expected_col:
+                                            # Unexpected checkbox is still checked - force uncheck
+                                            # logging.warning(f"Row {row_idx}: Unexpected checkbox found in Col {col_idx} - force unchecking")
+                                            field.CheckBox.Value = False
+                                            final_checked_cols.remove(
+                                                col_idx)  # Remove from list since we just fixed it
                     except Exception as e:
-                        logging.error(f"Error checking checkbox in Row {row_idx}, Col {col_idx}: {e}")
+                        logging.error(f"Row {row_idx}: Error verifying checkbox in Col {col_idx}: {e}")
+
+                # Double-check the expected one is actually checked
+                if expected_col:
+                    try:
+                        cell = table.Cell(row_idx, expected_col)
+                        if cell.Range.FormFields.Count > 0:
+                            for field in cell.Range.FormFields:
+                                if field.Type == 71 and not field.CheckBox.Value:
+                                    logging.error(
+                                        f"Row {row_idx}: Expected checkbox in Col {expected_col} is not checked - force setting!")
+                                    field.CheckBox.Value = True
+                                    final_checked_cols.append(expected_col)
+                    except Exception as e:
+                        logging.error(f"Row {row_idx}: Error double-checking checkbox in Col {expected_col}: {e}")
+
+                # Final state validation
+                if expected_col is None:
+                    # Should be all unchecked
+                    if final_checked_cols:
+                        logging.error(f"Row {row_idx}: Verification failed! Expected all unchecked but found {final_checked_cols} still checked")
+                    else:
+                        logging.debug(f"Row {row_idx}: Verification passed - all checkboxes unchecked as expected")
+                else:
+                    # Should have exactly one checked (the expected one)
+                    if len(final_checked_cols) == 1 and final_checked_cols[0] == expected_col:
+                        logging.debug(
+                            f"Row {row_idx}: Verification passed - Col {expected_col} checked, others unchecked")
+                    else:
+                        logging.error(f"Row {row_idx}: Verification failed! Expected Col {expected_col} checked, but found {final_checked_cols}")
+
             root.update()
 
         # Save changes to the original document
