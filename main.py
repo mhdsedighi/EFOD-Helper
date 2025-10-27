@@ -306,10 +306,10 @@ def fill_form_from_excel(excel_path, form_path, root):
         'different': 6,  # Short form
         'different in character': 6,  # Full form
         'difference in character': 6,  # Full form
-        'difference in character or Other means of compliance': 6,  # Full form
+        'difference in character or other means of compliance': 6,  # Full form
         'less': 7,  # Short form
-        'less protective or partially': 7,  # short form
-        'Less protective or Partially Implemented or Not Implemented': 7,  # Full form
+        'less protective or partially': 7,  # Short form
+        'less protective or partially implemented or not implemented': 7,  # Full form
         'significant': 8,  # Short form
         'significant difference': 8,  # Full form
         'not': 9,  # Short form
