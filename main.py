@@ -306,9 +306,10 @@ def fill_form_from_excel(excel_path, form_path, root):
         'different': 6,  # Short form
         'different in character': 6,  # Full form
         'difference in character': 6,  # Full form
-        'difference in character/ other means of compliance': 6,  # Full form
+        'difference in character or Other means of compliance': 6,  # Full form
         'less': 7,  # Short form
-        'less protective or partially': 7,  # Full form
+        'less protective or partially': 7,  # short form
+        'Less protective or Partially Implemented or Not Implemented': 7,  # Full form
         'significant': 8,  # Short form
         'significant difference': 8,  # Full form
         'not': 9,  # Short form
@@ -634,6 +635,12 @@ def xml_to_excel(xml_path, output_dir, root):
             standard_text = standard.text if standard is not None else "Not Found"
             state_ref_text = state_ref.text if state_ref is not None else "Not Found"
             difference_text = difference.text if difference is not None else "Not Found"
+            if difference_text.lower().startswith("less p"):
+                difference_text = "Less protective or Partially Implemented or Not Implemented"
+            elif difference_text.lower().startswith("more e"):
+                difference_text = "More Exacting or Exceeds"
+            elif difference_text.lower().startswith("difference"):
+                difference_text = "Difference in character or Other means of compliance"
             state_difference_text = state_difference.text if state_difference is not None else "Not Found"
             state_comments_text = state_comments.text if state_comments is not None else "Not Found"
 
