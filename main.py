@@ -303,18 +303,18 @@ def fill_form_from_excel(excel_path, form_path, root):
         'more': 5,  # Short form
         'more exacting': 5,  # Full form
         'more exacting or exceeds': 5,  # Full form
-        'different': 6,  # Short form
-        'different in character': 6,  # Full form
+        'difference': 6,  # Short form
         'difference in character': 6,  # Full form
         'difference in character or other means of compliance': 6,  # Full form
         'less': 7,  # Short form
+        'less protective': 7,  # Short form
         'less protective or partially': 7,  # Short form
+        'partially implemented': 7,  # Short form
+        'not implemented': 7,  # Short form
         'less protective or partially implemented or not implemented': 7,  # Full form
         'significant': 8,  # Short form
         'significant difference': 8,  # Full form
-        'not': 9,  # Short form
         'not applicable': 9,  # Full form
-        'not defined': 9  # Full form
     }
     valid_values = list(checkbox_text_map.keys()) + ['error-multi checkbox',
                                                      '']  # Allow empty string and error-multi checkbox
