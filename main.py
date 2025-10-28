@@ -158,17 +158,32 @@ def export_table_to_excel(file_path, output_dir, root):
                 if col_idx in [2, 3, 10, 11]:
                     cell_text = visible_text  # No stripping to keep spaces, tabs, newlines, and carriage returns
                 else:
-                    cell_text = visible_text.strip()
+                    cell_text = visible_text.strip()  # Strip for column 1 and others
+                # Log raw and processed text for columns 2, 3, 10, 11
+                if col_idx in [2, 3, 10, 11]:
+                    logging.debug(f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, final: {repr(cell_text)}")
+                # If in first column, extract numeric part
                 if col_idx == 1:
                     numeric_match = re.match(r'^\d+(?:\.\d+)?(?![.\d])', cell_text)
                     if numeric_match:
                         cell_text = numeric_match.group(0)
+                        logging.debug(
+                            f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, matched: {cell_text}, remainder: {repr(raw_text[len(visible_text):].strip())}")
+                    else:
+                        cell_text = visible_text
+                        logging.debug(
+                            f"Row {row_idx}, Col {col_idx} raw: {repr(raw_text)}, visible: {repr(visible_text)}, cleaned: {cell_text} (no numeric match)")
+                # Handle checkbox columns (4-9)
                 if col_idx in checkbox_columns:
                     for field in cell.Range.FormFields:
                         if field.Type == 71:  # wdFieldFormCheckBox
                             if field.CheckBox.Value:
                                 checked_indices.append(str(col_idx))
-                elif col_idx in [1, 2, 3, 10, 11]:
+                            # Debug: Print raw cell content if problematic
+                            if any(ord(c) < 32 and c not in ['\n', '\t', '\r'] for c in raw_text):
+                                logging.debug(f"Row {row_idx}, Col {col_idx} raw content: {repr(raw_text)}")
+                # Add specific columns to row_data in desired order
+                elif col_idx in [1, 2, 3, 10, 11]:  # Only these go to Excel
                     if col_idx == 1:
                         row_data.append(cell_text)  # Annex Ref. (Excel col 1)
                     elif col_idx == 2:
@@ -301,14 +316,21 @@ def fill_form_from_excel(excel_path, form_path, root):
         'significant difference': 8,  # Full form
         'not applicable': 9,  # Full form
     }
-    valid_values = list(checkbox_text_map.keys()) + ['error-multi checkbox', '']
+    valid_values = list(checkbox_text_map.keys()) + ['error-multi checkbox',
+                                                     '']  # Allow empty string and error-multi checkbox
     invalid_rows = []
     for idx, value in enumerate(df["Difference"]):
+        # Convert value to string and normalize for comparison
         diff_value = str(value).strip().lower() if pd.notna(value) else ''
         if diff_value not in valid_values:
-            invalid_rows.append((idx + 2, value))
+            invalid_rows.append((idx + 2, value))  # Excel row number (index + 2 due to header)
+
     if invalid_rows:
-        error_message = "Invalid values found in the 'Difference' column...\n"
+        error_message = "Invalid values found in the 'Difference' column. The following rows contain unrecognized values:\n\n"
+        for row_num, value in invalid_rows:
+            error_message += f"Row {row_num}: '{value}'\n"
+        error_message += "\nExpected values are: " + ", ".join(
+            f"'{v}'" for v in checkbox_text_map.keys()) + ", 'error-multi checkbox', or empty."
         logging.error(error_message)
         messagebox.showerror("Invalid Difference Values", error_message)
         return None
@@ -377,9 +399,9 @@ def fill_form_from_excel(excel_path, form_path, root):
         max_rows = table.Rows.Count
         logging.info(f"Processing {max_rows} rows")
         root.update()
-
         for row_idx in range(1, max_rows + 1):
-            row_data = df.iloc[row_idx - 1] # 0-based index for pandas
+            row_data = df.iloc[row_idx - 1]  # 0-based index for pandas
+
             # Fill text fields (columns 3, 10, 11)
             for col_idx, value in [(3, row_data["State Ref."]), (10, row_data["Details"]), (11, row_data["Remark"])]:
                 try:
@@ -391,30 +413,35 @@ def fill_form_from_excel(excel_path, form_path, root):
                             if pd.isna(value):
                                 cell_text = ""
                             else:
-                                cell_text = str(value).strip()
-                                # Remove problematic Unicode spaces only for very short strings
-                                if len(cell_text) <= 3:
+                                # Convert to string and clean up whitespace
+                                cell_text = str(value)
+
+                                # Remove leading/trailing whitespace (including Unicode spaces)
+                                cell_text = cell_text.strip()
+
+                                # Remove internal Unicode whitespace characters that are effectively empty
+                                # Keep regular spaces, tabs, and newlines, but remove exotic Unicode spaces
+                                if not cell_text or len(cell_text) <= 3:
+                                    # For very short strings, check if it's just whitespace
                                     cleaned = re.sub(r'[\u2000-\u200B\u2028\u2029\u202F\u205F\u3000]+', '', cell_text)
-                                    if not cleaned.strip():
+                                    if not cleaned:
                                         cell_text = ""  # Treat as empty if only Unicode whitespace
                                     else:
-                                        cell_text = cleaned
-                            # --- DEBUG: Check length and attempt safe write ---
-                            original_text = cell_text
-                            max_len = 255  # Word form fields have limits (~255 chars typical)
-                            if len(cell_text) > max_len:
-                                logging.warning(f"Row {row_idx}, Col {col_idx}: Text too long ({len(cell_text)} chars). Truncating to {max_len}.")
-                                cell_text = cell_text[:max_len]
-
-                            field.Result = cell_text
-                            actual_result = field.Result
-                            if actual_result != cell_text:
-                                logging.warning(f"Row {row_idx}, Col {col_idx}: Mismatch after write. Expected: {repr(cell_text)}, Got: {repr(actual_result)}")
-                            else:
-                                if cell_text:
-                                    logging.debug(f"Set text field in Row {row_idx}, Col {col_idx}: '{cell_text}'")
+                                        cell_text = cleaned  # Keep the cleaned content
                                 else:
-                                    logging.debug(f"Cleared text field in Row {row_idx}, Col {col_idx} (empty)")
+                                    # For longer content, just strip and keep as-is
+                                    pass
+                            #  Truncate to 255 chars (Word form field limit) ---
+                            if len(cell_text) > 255:
+                                logging.warning(f"Row {row_idx}, Col {col_idx}: Text truncated from {len(cell_text)} to 255 characters.")
+                                cell_text = cell_text[:255]
+                            
+                            # Set the field
+                            field.Result = cell_text
+
+                            if cell_text:logging.debug(f"Set text field in Row {row_idx}, Col {col_idx}: '{cell_text}'")
+                            else:
+                                logging.debug(f"Cleared text field in Row {row_idx}, Col {col_idx} (empty)")
                         else:
                             logging.warning(f"Expected text field, found type {field.Type} in Row {row_idx}, Col {col_idx}")
                     else:
@@ -429,7 +456,7 @@ def fill_form_from_excel(excel_path, form_path, root):
 
             # First, determine the current checkbox state - detect ALL checked boxes
             current_checked_cols = []
-            for col_idx in range(4, 10): 
+            for col_idx in range(4, 10):  # Columns 4-9
                 try:
                     cell = table.Cell(row_idx, col_idx)
                     if cell.Range.FormFields.Count > 0:
@@ -507,21 +534,46 @@ def fill_form_from_excel(excel_path, form_path, root):
                         cell = table.Cell(row_idx, col_idx)
                         if cell.Range.FormFields.Count > 0:
                             for field in cell.Range.FormFields:
-                                if field.Type == 71 and field.CheckBox.Value:
-                                    final_checked_cols.append(col_idx)
+                                if field.Type == 71:  # wdFieldFormCheckBox
+                                    if field.CheckBox.Value:
+                                        final_checked_cols.append(col_idx)
+                                        if col_idx != expected_col:
+                                            # Unexpected checkbox is still checked - force uncheck
+                                            # logging.warning(f"Row {row_idx}: Unexpected checkbox found in Col {col_idx} - force unchecking")
+                                            field.CheckBox.Value = False
+                                            final_checked_cols.remove(
+                                                col_idx)  # Remove from list since we just fixed it
                     except Exception as e:
                         logging.error(f"Row {row_idx}: Error verifying checkbox in Col {col_idx}: {e}")
 
+                # Double-check the expected one is actually checked
+                if expected_col:
+                    try:
+                        cell = table.Cell(row_idx, expected_col)
+                        if cell.Range.FormFields.Count > 0:
+                            for field in cell.Range.FormFields:
+                                if field.Type == 71 and not field.CheckBox.Value:
+                                    logging.error(
+                                        f"Row {row_idx}: Expected checkbox in Col {expected_col} is not checked - force setting!")
+                                    field.CheckBox.Value = True
+                                    final_checked_cols.append(expected_col)
+                    except Exception as e:
+                        logging.error(f"Row {row_idx}: Error double-checking checkbox in Col {expected_col}: {e}")
+
+                # Final state validation
                 if expected_col is None:
+                    # Should be all unchecked
                     if final_checked_cols:
-                        logging.error(f"Row {row_idx}: Verification failed! Expected all unchecked but found {final_checked_cols}")
+                        logging.error(f"Row {row_idx}: Verification failed! Expected all unchecked but found {final_checked_cols} still checked")
                     else:
-                        logging.debug(f"Row {row_idx}: Verification passed - all unchecked")
+                        logging.debug(f"Row {row_idx}: Verification passed - all checkboxes unchecked as expected")
                 else:
+                    # Should have exactly one checked (the expected one)
                     if len(final_checked_cols) == 1 and final_checked_cols[0] == expected_col:
-                        logging.debug(f"Row {row_idx}: Verification passed - Col {expected_col} checked")
+                        logging.debug(
+                            f"Row {row_idx}: Verification passed - Col {expected_col} checked, others unchecked")
                     else:
-                        logging.error(f"Row {row_idx}: Verification failed! Expected Col {expected_col}, found {final_checked_cols}")
+                        logging.error(f"Row {row_idx}: Verification failed! Expected Col {expected_col} checked, but found {final_checked_cols}")
 
             root.update()
 
