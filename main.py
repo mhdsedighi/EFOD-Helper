@@ -431,7 +431,11 @@ def fill_form_from_excel(excel_path, form_path, root):
                                 else:
                                     # For longer content, just strip and keep as-is
                                     pass
-
+                            #  Truncate to 255 chars (Word form field limit) ---
+                            if len(cell_text) > 255:
+                                logging.warning(f"Row {row_idx}, Col {col_idx}: Text truncated from {len(cell_text)} to 255 characters.")
+                                cell_text = cell_text[:255]
+                            
                             # Set the field
                             field.Result = cell_text
 
